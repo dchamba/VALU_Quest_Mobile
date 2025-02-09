@@ -10,6 +10,7 @@ class QuestionsModel {
   String? maxValue;
   String? unit;
   String? isFixed;
+  String? isBMI;
   String? isActive;
   String? createdBy;
   String? createdDate;
@@ -18,6 +19,7 @@ class QuestionsModel {
   String? blockId;
   String? blockName;
   String? blockNewName;
+  String? questionTreeId;
   List<Option>? options;
   QuestionsModel({
     this.oId,
@@ -29,6 +31,7 @@ class QuestionsModel {
     this.maxValue,
     this.unit,
     this.isFixed,
+    this.isBMI,
     this.isActive,
     this.createdBy,
     this.createdDate,
@@ -37,7 +40,8 @@ class QuestionsModel {
     this.options,
     this.blockId,
     this.blockName,
-    this.blockNewName
+    this.blockNewName,
+    this.questionTreeId
   });
 
   factory QuestionsModel.fromJson(Map<String, dynamic> json) {
@@ -50,11 +54,13 @@ class QuestionsModel {
       minValue: json['minValue'],
       maxValue: json['maxValue'],
       unit: json['unit'],
-      isFixed: json['isFixed'],
+      isFixed: json['isFixed'].toString(),
+      isBMI: json['isBMI'].toString(),
       isActive: json['isActive'],
       blockId: json['blockId'],
       blockName: json['blockName'],
       blockNewName: json['blockNameNew'],
+      questionTreeId: json['questionTreeId'],
       createdBy: json['createdBy'],
       createdDate: json['createdDate'],
       modifiedBy: json['modifiedBy'],

@@ -63,6 +63,11 @@ class _ResultScreenState extends State<ResultScreen> {
     Colors.deepOrange,
     Colors.deepPurple,
     Colors.black,
+    Colors.deepPurpleAccent,
+    Colors.indigoAccent,
+    Colors.lightBlue,
+    Colors.greenAccent,
+
   ];
   List<double> blockAverages = [];
   double allBlockAverage = 0.0;
@@ -179,7 +184,9 @@ class _ResultScreenState extends State<ResultScreen> {
           (allBlockSum / sortedUniqueBlockIds.length).toStringAsFixed(2));
 
       for (var i = 0; i < sortedUniqueBlockIds.length; i++) {
-        blockColors.add(colors[i]);
+        if(sortedUniqueBlockIds.length < colors.length){
+          blockColors.add(colors[i]);
+        }
         sortedBlockAverageWithIDMap[sortedUniqueBlockIds[i]] = blockAverages[i];
         sortedBlockAverageWithID!
             .add({int.parse(sortedUniqueBlockIds[i]): blockAverages[i]});
@@ -467,10 +474,10 @@ class _ResultScreenState extends State<ResultScreen> {
                           headerText: const ["Blocco", "Resultati"],
                           columnData: columnDataBlockAverage),
                     ),
-
                     */
+
                     //spider chart
-                    /* blockAverages.length == sortedUniqueBlockIds.length
+                     blockAverages.length == sortedUniqueBlockIds.length
                         ? Container(
                             width: double.infinity,
                             padding: const EdgeInsets.only(top: 40, bottom: 40),
@@ -482,13 +489,12 @@ class _ResultScreenState extends State<ResultScreen> {
                                 data: blockAverages,
                                 labels: sortedUniqueBlockNewNames,
                                 decimalPrecision: 1,
-                                colorSwatch: Colors.cyan,
                                 colors: blockColors,
                               ),
                             ),
                           )
                         : const Text("Something went wrong!"),
-                    */
+
                     const SizedBox(
                       height: 20,
                     ),

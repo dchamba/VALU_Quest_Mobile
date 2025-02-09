@@ -1,0 +1,1 @@
+ D:\\Projects\\VALU\ Quest\\VALU_Quest\ 17122024\\.dart_tool\\flutter_build\\b2cc91c2574de79386fd69cec39e7c36\\native_assets.yaml: 
