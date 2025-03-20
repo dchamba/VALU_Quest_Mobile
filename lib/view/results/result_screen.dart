@@ -67,7 +67,6 @@ class _ResultScreenState extends State<ResultScreen> {
     Colors.indigoAccent,
     Colors.lightBlue,
     Colors.greenAccent,
-
   ];
   List<double> blockAverages = [];
   double allBlockAverage = 0.0;
@@ -122,7 +121,7 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 
   void calculations(Map<String, dynamic> answers) {
-    if(isLoading == false){
+    if (isLoading == false) {
       setLoading(true);
     }
 
@@ -142,7 +141,8 @@ class _ResultScreenState extends State<ResultScreen> {
       Map<String, List<double>> blockValues = {};
       answers.forEach((key, value) {
         if (value['optionId'] != null) {
-          int blockId = int.parse(value['blockNewName'].split(" ")[1]);
+          //int blockId = int.parse(value['blockNewName'].split(" ")[1]);
+          int blockId = int.parse(value['blockId']);
           String blockName = value['blockName'] ?? "";
           double optionValue = double.parse(value['option_value'].toString());
           uniqueBlockIds.add(blockId);
@@ -171,8 +171,7 @@ class _ResultScreenState extends State<ResultScreen> {
         average = double.parse(average.toStringAsFixed(1));
         blockAverages.add(average);
       });
-      sortedUniqueBlockIds =
-          uniqueBlockIds.toList().map((id) => id.toString()).toList();
+      sortedUniqueBlockIds = uniqueBlockIds.toList().map((id) => id.toString()).toList();
       sortedUniqueBlockIds.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
 
       sortedUniqueBlockNames.addAll(sortedBlockValues.keys);
@@ -184,12 +183,11 @@ class _ResultScreenState extends State<ResultScreen> {
           (allBlockSum / sortedUniqueBlockIds.length).toStringAsFixed(2));
 
       for (var i = 0; i < sortedUniqueBlockIds.length; i++) {
-        if(sortedUniqueBlockIds.length < colors.length){
+        if (sortedUniqueBlockIds.length < colors.length) {
           blockColors.add(colors[i]);
         }
         sortedBlockAverageWithIDMap[sortedUniqueBlockIds[i]] = blockAverages[i];
-        sortedBlockAverageWithID!
-            .add({int.parse(sortedUniqueBlockIds[i]): blockAverages[i]});
+        sortedBlockAverageWithID!.add({int.parse(sortedUniqueBlockIds[i]): blockAverages[i]});
 
         columnDataBlockAverage.add({
           "id": sortedBlockValues.keys.elementAt(i),
@@ -235,43 +233,43 @@ class _ResultScreenState extends State<ResultScreen> {
 
     double value1 = double.parse(condition['conditionValue1'].toString());
 
-
     String conjunction = condition['conjunction'];
 
-      switch (condition["operator"]) {
-        case "=":
-          result = value == value1;
-          break;
-        case "!=":
-          result = value != value1;
-          break;
-        case ">":
-          result = value > value1;
-          break;
-        case "<":
-          result = value < value1;
-          break;
-        case ">=":
-          result = value >= value1;
-          break;
-        case "<=":
-          result = value <= value1;
-          break;
-        case "between":
-          double value2 = double.parse(condition['conditionValue2'].toString());
-          result = value >= value1 && value <= value2;
-          break;
-        default:
-          throw Exception("Unsupported operator: ${condition["operator"]}");
-      }
+    switch (condition["operator"]) {
+      case "=":
+        result = value == value1;
+        break;
+      case "!=":
+        result = value != value1;
+        break;
+      case ">":
+        result = value > value1;
+        break;
+      case "<":
+        result = value < value1;
+        break;
+      case ">=":
+        result = value >= value1;
+        break;
+      case "<=":
+        result = value <= value1;
+        break;
+      case "between":
+        double value2 = double.parse(condition['conditionValue2'].toString());
+        result = value >= value1 && value <= value2;
+        break;
+      default:
+        throw Exception("Unsupported operator: ${condition["operator"]}");
+    }
     //print("$value $value1 ${condition["operator"]} $value2 $result");
     if (previousResult != null) {
       if (conjunction == "AND") {
         result = previousResult && result;
       } else if (conjunction == "OR") {
         result = previousResult || result;
-      }else if (conjunction == "None") {
-        result = previousResult;
+      } else if (conjunction == "None") {
+        //fix Chamba
+        //result = previousResult;
       } else {
         throw Exception("Unsupported conjunction: $conjunction");
       }
@@ -284,54 +282,97 @@ class _ResultScreenState extends State<ResultScreen> {
     matchedCorrections.clear();
     try {
       for (var correction in corrections) {
-
         List<dynamic> conditions = correction['conditions'];
 
-
+        if(correction['correctionId'] == "25") {
+          print("");
+        }
         bool? previousResult;
         bool skipRestConditions = false;
-
+        if (kDebugMode) {
+          print(
+              "Correct Id = ${correction['correctionId']} ${correction['valueToAdd']} : length = ${conditions.length}");
+        }
         for (var condition in conditions) {
           condition['isApplied'] = 0;
           String currentConjunction = condition['conjunction'];
           String? previousConjunction;
-          if(condition['conditionType'] == "Block") {
+          if (kDebugMode) {
+            print("conditionType = ${condition['conditionType']}");
+          }
+          if (condition['conditionType'] == "Block") {
+            var blockForConditionCheck = sortedBlockAverageWithID!.firstWhere((block) => block.entries.first.key == int.parse(condition['blockId'].toString()), orElse: () => {},);
 
-            for (Map<int, double> block in sortedBlockAverageWithID!) {
-              if(block.entries.first.key == int.parse(condition['blockId'].toString())){
+            if (blockForConditionCheck.isNotEmpty) {
+              previousResult = calculateAndValidate(
+                  previousResult: previousResult,
+                  condition: condition,
+                  value: blockForConditionCheck.entries.first.value);
+
+              if (previousResult == true) {
+                condition['isApplied'] = 1;
+                break;
+              }
+
+              if (currentConjunction == "AND" && previousResult == false) {
+                skipRestConditions = true;
+                if (kDebugMode) {
+                  print("skipRestConditions = $skipRestConditions");
+                }
+                break;
+              }
+
+            /*for (Map<int, double> block in sortedBlockAverageWithID!) {
+              if (kDebugMode) {
+                print(
+                    "${block.entries.first.key} == ${int.parse(condition['blockId'].toString())} ${(block.entries.first.key == int.parse(condition['blockId'].toString()))}");
+              }
+              if (block.entries.first.key == int.parse(condition['blockId'].toString())) {
                 previousResult = calculateAndValidate(
-                    previousResult: previousResult, condition: condition, value: block.entries.first.value);
+                    previousResult: previousResult,
+                    condition: condition,
+                    value: block.entries.first.value);
 
                 if (previousResult == true) {
+                  if (kDebugMode) {
+                    print("isApplied");
+                  }
                   condition['isApplied'] = 1;
                   break;
                 }
                 if (currentConjunction == "AND" && previousResult == false) {
                   skipRestConditions = true;
+                  if (kDebugMode) {
+                    print("skipRestConditions = $skipRestConditions");
+                  }
                   break;
                 }
+              }*/
+            }
+            if (currentConjunction == "AND" && previousResult == null) {
+              skipRestConditions = true;
+              if (kDebugMode) {
+                print("skipRestConditions = $skipRestConditions");
               }
-
             }
-
-          }else if(condition['conditionType'] == "Global Value"){
-
-            previousResult = calculateAndValidate(
-                previousResult: previousResult, condition: condition, value: allBlockAverage);
+          } else if (condition['conditionType'] == "Global Value") {
+            /*previousResult = calculateAndValidate(
+                previousResult: previousResult,
+                condition: condition,
+                value: allBlockAverage);
 
             if (previousResult == true) {
               condition['isApplied'] = 1;
             }
             if (currentConjunction == "AND" && previousResult == false) {
               skipRestConditions = true;
-              break;
-            }
-
-
-          }else if(condition['conditionType'] == "BMI Value"){
-
+            }*/
+            skipRestConditions = true;
+          } else if (condition['conditionType'] == "BMI Value") {
             previousResult = calculateAndValidate(
-                previousResult: previousResult, condition: condition, value: widget.bmi);
+                previousResult: previousResult,
+                condition: condition,
+                value: widget.bmi);
 
             if (previousResult == true) {
               condition['isApplied'] = 1;
@@ -339,36 +380,80 @@ class _ResultScreenState extends State<ResultScreen> {
 
             if (currentConjunction == "AND" && previousResult == false) {
               skipRestConditions = true;
-              break;
             }
-
-          }else{
-            throw Exception("Unsupported conditionType: ${condition['conditionType']}");
+          } else {
+            throw Exception(
+                "Unsupported conditionType: ${condition['conditionType']}");
           }
 
           if (skipRestConditions) {
+            if (kDebugMode) {
+              print("skipped");
+            }
             break;
           }
 
-          if(previousConjunction != null){
-            if(previousConjunction == "AND" && previousResult! == false){
-              previousResult == false;
+          if (previousConjunction != null) {
+            if (previousConjunction == "AND" && previousResult! == false) {
+              previousResult = false;
             }
           }
           previousConjunction = currentConjunction;
-
+          if (kDebugMode) {
+            print(
+                "Current conjunction = $currentConjunction previousResult = $previousResult : ${(currentConjunction == "AND" && previousResult == false)}");
+          }
         }
 
         //==
         if (previousResult == true) {
           matchedCorrections.add(correction);
         }
-
       }
       matchedCorrections.map((correction) {
-        allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
+        allBlockAverageUpdated +=
+            double.parse(correction['valueToAdd'].toString());
       }).toList();
       allBlockAverageUpdated += allBlockAverage;
+
+
+      // Secondo passaggio: Controlliamo ora solo le correzioni "Global Value"
+      List<dynamic> globalCorrections = [];
+      for (var correction in corrections) {
+        List<dynamic> conditions = correction['conditions'];
+        if (conditions.isEmpty) continue;
+
+        bool? globalResult;
+        bool isGlobalCorrection = false;
+
+        for (var condition in conditions) {
+          if (condition['conditionType'] == "Global Value") {
+            globalResult = calculateAndValidate(
+                previousResult: globalResult,
+                condition: condition,
+                value: allBlockAverageUpdated);
+
+            if (globalResult) {
+              condition['isApplied'] = 1;
+              isGlobalCorrection = true; // Identifica che è una correzione "Global Value"
+            }
+          }
+        }
+
+        // Aggiungiamo la correzione solo se la condizione "Global Value" è verificata
+        if (isGlobalCorrection && (globalResult != null && globalResult)) {
+          globalCorrections.add(correction);
+        }
+      }
+
+      // Applichiamo solo le correzioni "Global Value" trovate valide
+      for (var correction in globalCorrections) {
+        matchedCorrections.add(correction);
+        if (correction['valueToAdd'] != null) {
+          allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
+        }
+      }
+
       storeQuestions();
     } catch (e) {
       setLoading(false);
@@ -397,8 +482,8 @@ class _ResultScreenState extends State<ResultScreen> {
           "height": widget.height,
           "weight": widget.weight,
           "blockAverageWithID": sortedBlockAverageWithIDMap,
-          "globalValue_after" : allBlockAverageUpdated,
-          "corrections" : matchedCorrections
+          "globalValue_after": allBlockAverageUpdated,
+          "corrections": matchedCorrections
         }),
       );
       LogUtils.log(
@@ -434,7 +519,6 @@ class _ResultScreenState extends State<ResultScreen> {
     // TODO: implement initState
     super.initState();
     getCorrections();
-
   }
 
   @override
@@ -444,16 +528,15 @@ class _ResultScreenState extends State<ResultScreen> {
         if (dataStored == true) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const RegistrationScreen()),
-                (route) => false,
+            (route) => false,
           );
         }
         return Future(() => dataStored == true ? false : true);
-
       },
       child: Scaffold(
         backgroundColor: AppColor.backgroundColor,
         appBar: AppBar(
-          title: const Text("Resultati"),
+          title: const Text("Risultati"),
           backgroundColor: AppColor.backgroundColor,
           centerTitle: true,
           foregroundColor: Colors.black,
@@ -464,7 +547,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 child: Column(
                   children: [
                     //table block result
-                   /* Padding(
+                    /* Padding(
                       padding: const EdgeInsets.only(
                         right: 10,
                         left: 10,
@@ -477,7 +560,7 @@ class _ResultScreenState extends State<ResultScreen> {
                     */
 
                     //spider chart
-                     blockAverages.length == sortedUniqueBlockIds.length
+                    blockAverages.length == sortedUniqueBlockIds.length
                         ? Container(
                             width: double.infinity,
                             padding: const EdgeInsets.only(top: 40, bottom: 40),
@@ -485,6 +568,7 @@ class _ResultScreenState extends State<ResultScreen> {
                             child: SizedBox(
                               width: MediaQuery.of(context).size.width * 0.6,
                               height: MediaQuery.of(context).size.width * 0.6,
+                              visible:isRadarChartVisible,
                               child: SpiderChart(
                                 data: blockAverages,
                                 labels: sortedUniqueBlockNewNames,
@@ -563,10 +647,12 @@ class _ResultScreenState extends State<ResultScreen> {
                                 dataSource: [
                                   ChartData(
                                       int.parse(sortedUniqueBlockIds.first),
-                                      double.parse(allBlockAverageUpdated.toStringAsFixed(2))),
+                                      double.parse(allBlockAverageUpdated
+                                          .toStringAsFixed(2))),
                                   ChartData(
                                       int.parse(sortedUniqueBlockIds.last),
-                                      double.parse(allBlockAverageUpdated.toStringAsFixed(2)))
+                                      double.parse(allBlockAverageUpdated
+                                          .toStringAsFixed(2)))
                                 ],
                                 xValueMapper: (ChartData data, _) => data.x,
                                 yValueMapper: (ChartData data, _) => data.y)
@@ -643,36 +729,47 @@ class _ResultScreenState extends State<ResultScreen> {
                       height: 20,
                     ),
                     ...matchedCorrections.map((correction) {
-
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5,horizontal: 10),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 5, horizontal: 10),
                         child: Container(
-                          decoration: BoxDecoration(border: Border.all(color: AppColor.buttonColor),borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(
+                              border: Border.all(color: AppColor.buttonColor),
+                              borderRadius: BorderRadius.circular(10)),
                           child: ListTile(
-                             tileColor: Colors.white30,
-                            title: Text(correction['correctionName'],style: const TextStyle(color: AppColor.buttonColor,fontWeight: FontWeight.bold),),
-                            subtitle: Text(correction['message'],),
+                            tileColor: Colors.white30,
+                            title: Text(
+                              correction['correctionName'],
+                              style: const TextStyle(
+                                  color: AppColor.buttonColor,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(
+                              correction['message'],
+                            ),
                             //trailing: Text(correction["valueToAdd"],style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold,color: Colors.red),),
                           ),
                         ),
                       );
                     }).toList(),
-                    
+
                     Container(
-                        padding: EdgeInsets.symmetric(vertical: 5,),
-                        margin: EdgeInsets.symmetric(horizontal: 20,vertical: 10),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 5,
+                        ),
+                        margin:
+                            EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(
                             color: Colors.green,
-                            borderRadius: BorderRadius.circular(5)
-                        ),
+                            borderRadius: BorderRadius.circular(5)),
                         child: Center(
                             child: Text(
-                              "Media Globale ${allBlockAverageUpdated.toStringAsFixed(2)}",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                              ),
-                            ))),
+                          "Media Globale ${allBlockAverageUpdated.toStringAsFixed(2)}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                          ),
+                        ))),
                     const SizedBox(
                       height: 20,
                     ),

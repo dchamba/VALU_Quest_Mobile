@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:valu_quest/APIs/urls.dart';
 import 'package:valu_quest/Utils/app_colors.dart';
 import 'package:valu_quest/view/bmi/bmi_calculator.dart';
 import 'package:valu_quest/view/questions/questions_screen.dart';
@@ -21,7 +22,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   TextEditingController genderController = TextEditingController();
   TextEditingController emailController = TextEditingController();
 
+  String selectedSurvey = "valu";
+
   get blockAverages => null;
+
+  void _saveSurveySelection() {
+    URLs.saveSurveyDatabaseConnectionn(selectedSurvey);
+    if (kDebugMode) {
+      print("Survey Database Connection updated: $selectedSurvey");
+    }
+  }
 
   @override
   void dispose() {
@@ -34,7 +44,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: AppColor.backgroundColor,
       body: SafeArea(
@@ -125,7 +134,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         }
                         return null;
                       },
-                      value: genderController.text.isNotEmpty ? genderController.text : null,
+                      value: genderController.text.isNotEmpty
+                          ? genderController.text
+                          : null,
                       hint: const Text('Sesso'),
                       items: genderList.map((gender) {
                         return DropdownMenuItem(
@@ -205,9 +216,40 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(
-                    height: 10,
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: DropdownButtonFormField(
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      value: selectedSurvey,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'valu',
+                          child: Text('Valu Standard'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'valuWork',
+                          child: Text('Valu Work'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedSurvey = value.toString();
+                          _saveSurveySelection();
+                          if (kDebugMode) {
+                            print(value);
+                          }
+                        });
+                      },
+                    ),
                   ),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     height: 60,
@@ -225,6 +267,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             if (FocusScope.of(context).hasFocus) {
                               FocusScope.of(context).unfocus();
                             }
+
+                            _saveSurveySelection();
                             Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -237,7 +281,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                                     email: emailController.text,
                                   ),
                                 ));
-
                           }
                         },
                         child: const Text("Registrati/inizia sondaggio")),
