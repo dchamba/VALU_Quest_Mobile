@@ -46,8 +46,6 @@ class ResultScreen extends StatefulWidget {
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  bool hideRadarChart = false;
-  bool isRadarChartConfigLoaded = false;
   bool isLoading = true;
 
   List<Color> colors = [
@@ -521,40 +519,6 @@ class _ResultScreenState extends State<ResultScreen> {
     // TODO: implement initState
     super.initState();
     getCorrections();
-  }
-
-  Future<void> fetchConfig() async {
-    final surveyDatabaseConnection = "main"; // Modifica se necessario
-    final configName = "mobileapp.resultPage.hideRadarChart";
-
-    try {
-      final response = await http.post(Uri.parse("${URLs.baseURL}${URLs.getConfigURL}"),
-          body: jsonEncode({"configName": "mobileapp.resultPage"}));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is Map && data.containsKey(configName)) {
-          final rawValue = data["value"].toString().toLowerCase();
-          setState(() {
-            hideRadarChart = rawValue == "true" || rawValue == "1";
-            isRadarChartConfigLoaded = true;
-          });
-        } else {
-          setState(() {
-            isRadarChartConfigLoaded = true;
-          });
-        }
-      } else {
-        debugPrint("Config fetch failed: ${response.statusCode}");
-        setState(() {
-          isRadarChartConfigLoaded = true;
-        });
-      }
-    } catch (e) {
-      debugPrint("Exception during config fetch: $e");
-      setState(() {
-        isRadarChartConfigLoaded = true;
-      });
-    }
   }
 
   @override

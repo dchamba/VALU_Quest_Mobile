@@ -5,6 +5,8 @@ import 'package:valu_quest/Utils/app_colors.dart';
 import 'package:valu_quest/view/bmi/bmi_calculator.dart';
 import 'package:valu_quest/view/questions/questions_screen.dart';
 
+import '../../APIs/configs.dart';
+
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
@@ -267,7 +269,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             if (FocusScope.of(context).hasFocus) {
                               FocusScope.of(context).unfocus();
                             }
-
+                            Configs.fetchConfig();
                             _saveSurveySelection();
                             Navigator.push(
                                 context,
