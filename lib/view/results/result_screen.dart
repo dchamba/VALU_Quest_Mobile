@@ -490,18 +490,15 @@ class _ResultScreenState extends State<ResultScreen> {
           jsonDecode(response.body)['success'] == true) {
         LogUtils.log("API : ${URLs.baseURL}${URLs.storeQuestionsURL}",
             jsonDecode(response.body));
-        SnacbarUtils.show(
-            context, "Sondaggio completato con successo !", false);
+        //SnacbarUtils.show(context, "Sondaggio completato con successo !", false);
         setState(() {
           dataStored = true;
         });
-        LogUtils.log("storeQuestions(): ${response.statusCode}",
-            "Data Inserted successfully!");
+        LogUtils.log("storeQuestions(): ${response.statusCode}", "Data Inserted successfully!");
       } else {
         setLoading(false);
         Navigator.pop(context);
-        SnacbarUtils.show(context,
-            "Qualcosa è andato storto!, Errore: ${response.statusCode} ", true);
+        SnacbarUtils.show(context, "Qualcosa è andato storto!, Errore: ${response.statusCode} ", true);
         LogUtils.log("storeQuestions(): ${response.statusCode}", response);
       }
     } catch (e) {
@@ -813,7 +810,7 @@ class _ResultScreenState extends State<ResultScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 70),
 
                             // "Transfer Successful!" Text
 
@@ -825,7 +822,7 @@ class _ResultScreenState extends State<ResultScreen> {
                                 color: Colors.black,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 40),
 
                             // "Il sondaggio è stato compilato correttamente..." Text
                             Padding(
@@ -840,7 +837,7 @@ class _ResultScreenState extends State<ResultScreen> {
                               ),
                             ),
 
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 50),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 padding: EdgeInsets.symmetric(horizontal: 100, vertical: 10),
