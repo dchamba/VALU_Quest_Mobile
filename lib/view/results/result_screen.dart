@@ -1,12 +1,14 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:spider_chart/spider_chart.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:valu_quest/APIs/configs.dart';
 import 'package:valu_quest/Utils/app_colors.dart';
 import 'package:valu_quest/Utils/log_utils.dart';
 import 'package:valu_quest/test.dart';
@@ -284,9 +286,6 @@ class _ResultScreenState extends State<ResultScreen> {
       for (var correction in corrections) {
         List<dynamic> conditions = correction['conditions'];
 
-        if(correction['correctionId'] == "25") {
-          print("");
-        }
         bool? previousResult;
         bool skipRestConditions = false;
         if (kDebugMode) {
@@ -411,8 +410,7 @@ class _ResultScreenState extends State<ResultScreen> {
         }
       }
       matchedCorrections.map((correction) {
-        allBlockAverageUpdated +=
-            double.parse(correction['valueToAdd'].toString());
+        allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
       }).toList();
       allBlockAverageUpdated += allBlockAverage;
 
@@ -541,8 +539,8 @@ class _ResultScreenState extends State<ResultScreen> {
           centerTitle: true,
           foregroundColor: Colors.black,
         ),
-        body: !isLoading
-            ? SingleChildScrollView(
+        body: !isLoading ?
+              SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   children: [
@@ -560,8 +558,8 @@ class _ResultScreenState extends State<ResultScreen> {
                     */
 
                     //spider chart
-                    blockAverages.length == sortedUniqueBlockIds.length
-                        ? Container(
+                    if(blockAverages.length == sortedUniqueBlockIds.length && (!Configs.hideRadarChart))
+                        Container(
                             width: double.infinity,
                             padding: const EdgeInsets.only(top: 40, bottom: 40),
                             color: Colors.white30,
@@ -577,11 +575,13 @@ class _ResultScreenState extends State<ResultScreen> {
                               ),
                             ),
                           )
-                        : const Text("Something went wrong!"),
+                        else if(blockAverages.length != sortedUniqueBlockIds.length)
+                          const Text("Something went wrong!"),
 
                     const SizedBox(
                       height: 20,
                     ),
+                    if (!Configs.hideBlockAvgTable)
                     SizedBox(
                       height: 400,
                       child: SfCartesianChart(
@@ -728,6 +728,7 @@ class _ResultScreenState extends State<ResultScreen> {
                     const SizedBox(
                       height: 20,
                     ),
+                    if (!Configs.hideCorrectionsMessages)
                     ...matchedCorrections.map((correction) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(
@@ -753,6 +754,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       );
                     }).toList(),
 
+                    if (!Configs.hideGlobalAvgLabel)
                     Container(
                         padding: EdgeInsets.symmetric(
                           vertical: 5,
@@ -773,12 +775,97 @@ class _ResultScreenState extends State<ResultScreen> {
                     const SizedBox(
                       height: 20,
                     ),
+                    if(!Configs.hideThankYouSection)
+                    Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.green,
+                                boxShadow: [
+                                  // Outer glow verde brillante
+                                  BoxShadow(
+                                    color: Colors.greenAccent.withOpacity(0.5),
+                                    blurRadius: 60,  // più sfocato
+                                    spreadRadius: 20,  // più largo
+                                  ),
+                                  // Glow interno secondario per profondità
+                                  BoxShadow(
+                                    color: Colors.green.withOpacity(0.3),
+                                    blurRadius: 30,
+                                    spreadRadius: 10,
+                                  ),
+                                  // Leggera ombra per effetto 3D
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    offset: Offset(5, 5),
+                                    blurRadius: 12,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(12), // spazio intorno all’icona
+                              child: const Icon(
+                                Icons.check,
+                                size: 90,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // "Transfer Successful!" Text
+
+                            // "Grazie per la tua partecipazione!" Text
+                            Text(
+                              "Grazie per la tua partecipazione!",
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // "Il sondaggio è stato compilato correttamente..." Text
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              child: Text(
+                                "Il sondaggio è stato compilato correttamente. I risultati verranno analizzati dall’amministratore.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(horizontal: 100, vertical: 10),
+                                backgroundColor: AppColor.buttonColor,
+                                foregroundColor: Colors.white,
+                                textStyle: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              onPressed: () {
+                                SystemNavigator.pop(); // ⬅️ chiude l'app
+                              },
+                              child: Text("Chiudi"),
+                            )
+                          ],
+                        ),
+                      )
                   ],
                 ),
               )
             : Center(
                 child: LoadingAnimationWidget.inkDrop(
                     color: AppColor.buttonColor, size: 50)),
+
       ),
     );
   }
