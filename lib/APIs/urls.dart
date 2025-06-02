@@ -5,6 +5,7 @@ class URLs {
   static String getQuestionsURL = "get-question1.php";
   static String getChildQuestionsURL = "get-child-questions.php";
   static String getCorrectionsURL = "get-corrections.php";
+  static String getCorrectionsFilteredByPriorityList = "get-correctionsFilteredByPriorityList.php";
   static String getConfigURL = "get-config.php";
   static String storeQuestionsURL = "store-questionnaire.php";
 
@@ -16,6 +17,7 @@ class URLs {
     getQuestionsURL = "get-question1.php?connessioneDB=$surveyDatabaseConnection";
     getChildQuestionsURL = "get-child-questions.php?connessioneDB=$surveyDatabaseConnection";
     getCorrectionsURL = "get-corrections.php?connessioneDB=$surveyDatabaseConnection";
+    getCorrectionsFilteredByPriorityList = "get-correctionsFilteredByPriorityList.php?connessioneDB=$surveyDatabaseConnection";
     storeQuestionsURL = "store-questionnaire.php?connessioneDB=$surveyDatabaseConnection";
     getConfigURL = "get-config.php?connessioneDB=$surveyDatabaseConnection";
   }

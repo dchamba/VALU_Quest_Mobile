@@ -452,11 +452,41 @@ class _ResultScreenState extends State<ResultScreen> {
         }
       }
 
-      storeQuestions();
+      sendCorrectionsToServer();
     } catch (e) {
       setLoading(false);
       LogUtils.log("applyCorrections()", e.toString());
     }
+  }
+
+  Future<void> sendCorrectionsToServer() async {
+    try {
+      setLoading(true);
+      final response = await http.post(
+        Uri.parse("${URLs.baseURL}${URLs.getCorrectionsFilteredByPriorityList}"),
+        headers: {'Content-Type': 'application/json', },
+        body: jsonEncode({"matchedCorrections": matchedCorrections, }),
+      );
+
+      if (response.statusCode == 200) {
+        LogUtils.log("API : ${URLs.baseURL}${URLs.getCorrectionsFilteredByPriorityList}", response.body);
+
+        // Fase 4: Elaborazione della risposta del server
+        var data = jsonDecode(response.body)['data'];
+        if (data != null) {
+          matchedCorrections.clear();
+          matchedCorrections.addAll(data);
+          storeQuestions();
+        }
+      } else {
+        LogUtils.log("Errore durante il filtro delle correzioni su liste priorità: ${response.statusCode}", response);
+        setLoading(false);
+      }
+    } catch (e) {
+      LogUtils.log("Errore durante l'invio delle correzioni al server", e.toString());
+      setLoading(false);
+    }
+    setLoading(false);
   }
 
   bool dataStored = false;
