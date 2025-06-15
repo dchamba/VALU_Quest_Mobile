@@ -82,7 +82,9 @@ class _ResultScreenState extends State<ResultScreen> {
   List columnDataBlockAverage = [];
   List columnDataFreeText = [];
   List<dynamic> corrections = [];
+  List<dynamic> applicableCorrections = [];
   List<dynamic> matchedCorrections = [];
+  List<dynamic> matchedNotLastCorrections = [];
 
   void setLoading(bool status) {
     setState(() {
@@ -282,6 +284,7 @@ class _ResultScreenState extends State<ResultScreen> {
   Future<void> applyCorrections() async {
     allBlockAverageUpdated = 0.0;
     matchedCorrections.clear();
+    applicableCorrections.clear();
     try {
       for (var correction in corrections) {
         List<dynamic> conditions = correction['conditions'];
@@ -320,33 +323,6 @@ class _ResultScreenState extends State<ResultScreen> {
                 }
                 break;
               }
-
-            /*for (Map<int, double> block in sortedBlockAverageWithID!) {
-              if (kDebugMode) {
-                print(
-                    "${block.entries.first.key} == ${int.parse(condition['blockId'].toString())} ${(block.entries.first.key == int.parse(condition['blockId'].toString()))}");
-              }
-              if (block.entries.first.key == int.parse(condition['blockId'].toString())) {
-                previousResult = calculateAndValidate(
-                    previousResult: previousResult,
-                    condition: condition,
-                    value: block.entries.first.value);
-
-                if (previousResult == true) {
-                  if (kDebugMode) {
-                    print("isApplied");
-                  }
-                  condition['isApplied'] = 1;
-                  break;
-                }
-                if (currentConjunction == "AND" && previousResult == false) {
-                  skipRestConditions = true;
-                  if (kDebugMode) {
-                    print("skipRestConditions = $skipRestConditions");
-                  }
-                  break;
-                }
-              }*/
             }
             if (currentConjunction == "AND" && previousResult == null) {
               skipRestConditions = true;
@@ -355,17 +331,6 @@ class _ResultScreenState extends State<ResultScreen> {
               }
             }
           } else if (condition['conditionType'] == "Global Value") {
-            /*previousResult = calculateAndValidate(
-                previousResult: previousResult,
-                condition: condition,
-                value: allBlockAverage);
-
-            if (previousResult == true) {
-              condition['isApplied'] = 1;
-            }
-            if (currentConjunction == "AND" && previousResult == false) {
-              skipRestConditions = true;
-            }*/
             skipRestConditions = true;
           } else if (condition['conditionType'] == "BMI Value") {
             previousResult = calculateAndValidate(
@@ -407,11 +372,12 @@ class _ResultScreenState extends State<ResultScreen> {
         //==
         if (previousResult == true) {
           matchedCorrections.add(correction);
+          applicableCorrections.add(correction);
         }
       }
-      matchedCorrections.map((correction) {
-        allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
-      }).toList();
+      //matchedCorrections.map((correction) {
+      //  allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
+      //}).toList();
       allBlockAverageUpdated += allBlockAverage;
 
 
@@ -447,6 +413,7 @@ class _ResultScreenState extends State<ResultScreen> {
       // Applichiamo solo le correzioni "Global Value" trovate valide
       for (var correction in globalCorrections) {
         matchedCorrections.add(correction);
+        applicableCorrections.add(correction);
         if (correction['valueToAdd'] != null) {
           allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
         }
@@ -471,11 +438,33 @@ class _ResultScreenState extends State<ResultScreen> {
       if (response.statusCode == 200) {
         LogUtils.log("API : ${URLs.baseURL}${URLs.getCorrectionsFilteredByPriorityList}", response.body);
 
-        // Fase 4: Elaborazione della risposta del server
-        var data = jsonDecode(response.body)['data'];
-        if (data != null) {
-          matchedCorrections.clear();
-          matchedCorrections.addAll(data);
+        // Decodifica l'intera risposta
+        final json = jsonDecode(response.body);
+
+        if (json['success'] == true) {
+          // Estrai entrambi gli array
+          final List<dynamic> primaryIds = json['data'] ?? [];
+          final List<dynamic> secondaryIds = json['matchedNotLastCorrections'] ?? [];
+
+          // converto in Set<String> per confronto veloce
+          final Set<String> primarySet = primaryIds.map((e) => e.toString()).toSet();
+          final Set<String> secondarySet = secondaryIds.map((e) => e.toString()).toSet();
+
+          // Filtra dalla lista completa
+          matchedNotLastCorrections = applicableCorrections.where((correction) {
+            final id = correction['correctionId'].toString();
+            return secondarySet.contains(id);
+          }).toList();
+
+          matchedCorrections = applicableCorrections.where((correction) {
+            final id = correction['correctionId'].toString();
+            return primarySet.contains(id);
+          }).toList();
+
+          matchedCorrections.map((correction) {
+            allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
+          }).toList();
+
           storeQuestions();
         }
       } else {
@@ -511,7 +500,8 @@ class _ResultScreenState extends State<ResultScreen> {
           "weight": widget.weight,
           "blockAverageWithID": sortedBlockAverageWithIDMap,
           "globalValue_after": allBlockAverageUpdated,
-          "corrections": matchedCorrections
+          "corrections": matchedCorrections,
+          "matchedNotLastCorrections": matchedNotLastCorrections
         }),
       );
       LogUtils.log(
@@ -541,6 +531,7 @@ class _ResultScreenState extends State<ResultScreen> {
   @override
   void initState() {
     // ignore: todo
+    // ignore:  todo
     // TODO: implement initState
     super.initState();
     getCorrections();
@@ -781,6 +772,33 @@ class _ResultScreenState extends State<ResultScreen> {
                       );
                     }).toList(),
 
+                    if (!Configs.hideCorrectionsMessages && matchedNotLastCorrections.isNotEmpty)
+                      ...matchedNotLastCorrections.map((correction) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 5, horizontal: 10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(10)),
+                            child: ListTile(
+                              //tileColor: Colors.grey.shade800,
+                              title: Text(
+                                correction['correctionName'],
+                                style: const TextStyle(
+                                    //color: Colors.grey.shade700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                correction['message'],
+                              ),
+                              //trailing: Text(correction["valueToAdd"],style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold,color: Colors.red),),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     if (!Configs.hideGlobalAvgLabel)
                     Container(
                         padding: EdgeInsets.symmetric(
