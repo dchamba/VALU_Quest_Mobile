@@ -84,7 +84,9 @@ class _ResultScreenState extends State<ResultScreen> {
   List<dynamic> corrections = [];
   List<dynamic> applicableCorrections = [];
   List<dynamic> matchedCorrections = [];
+  List<dynamic> matchedCorrectionsOutOfPriorityList = [];
   List<dynamic> matchedNotLastCorrections = [];
+  List<dynamic> allCorrectionsToShowInFinalReport = [];
 
   void setLoading(bool status) {
     setState(() {
@@ -443,12 +445,14 @@ class _ResultScreenState extends State<ResultScreen> {
 
         if (json['success'] == true) {
           // Estrai entrambi gli array
-          final List<dynamic> primaryIds = json['data'] ?? [];
+          final List<dynamic> primaryIds = json['matchedLastAppliedCorrectionIdsFromPriorityList'] ?? [];
           final List<dynamic> secondaryIds = json['matchedNotLastCorrections'] ?? [];
+          final List<dynamic> primaryIdsNotFromPriortyList = json['appliedCorrectionIdsOutOfPriorityList'] ?? [];
 
           // converto in Set<String> per confronto veloce
           final Set<String> primarySet = primaryIds.map((e) => e.toString()).toSet();
           final Set<String> secondarySet = secondaryIds.map((e) => e.toString()).toSet();
+          final Set<String> primarySetNotFromPriortyList = primaryIdsNotFromPriortyList.map((e) => e.toString()).toSet();
 
           // Filtra dalla lista completa
           matchedNotLastCorrections = applicableCorrections.where((correction) {
@@ -461,9 +465,21 @@ class _ResultScreenState extends State<ResultScreen> {
             return primarySet.contains(id);
           }).toList();
 
+          matchedCorrectionsOutOfPriorityList = applicableCorrections.where((correction) {
+            final id = correction['correctionId'].toString();
+            return primaryIdsNotFromPriortyList.contains(id);
+          }).toList();
+
           matchedCorrections.map((correction) {
             allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
           }).toList();
+
+          matchedCorrectionsOutOfPriorityList.map((correction) {
+            allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
+          }).toList();
+
+          allCorrectionsToShowInFinalReport.addAll(matchedCorrections);
+          allCorrectionsToShowInFinalReport.addAll(matchedCorrectionsOutOfPriorityList);
 
           storeQuestions();
         }
@@ -500,7 +516,8 @@ class _ResultScreenState extends State<ResultScreen> {
           "weight": widget.weight,
           "blockAverageWithID": sortedBlockAverageWithIDMap,
           "globalValue_after": allBlockAverageUpdated,
-          "corrections": matchedCorrections,
+          "matchedLastCorrections": matchedCorrections,
+          "matchedCorrectionsOutOfPriorityList": matchedCorrectionsOutOfPriorityList,
           "matchedNotLastCorrections": matchedNotLastCorrections
         }),
       );
@@ -530,9 +547,6 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   void initState() {
-    // ignore: todo
-    // ignore:  todo
-    // TODO: implement initState
     super.initState();
     getCorrections();
   }
@@ -747,7 +761,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       height: 20,
                     ),
                     if (!Configs.hideCorrectionsMessages)
-                    ...matchedCorrections.map((correction) {
+                    ...allCorrectionsToShowInFinalReport.map((correction) {
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                             vertical: 5, horizontal: 10),
@@ -772,6 +786,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       );
                     }).toList(),
 
+                    /*
                     if (!Configs.hideCorrectionsMessages && matchedNotLastCorrections.isNotEmpty)
                       ...matchedNotLastCorrections.map((correction) {
                         return Padding(
@@ -799,6 +814,7 @@ class _ResultScreenState extends State<ResultScreen> {
                           ),
                         );
                       }).toList(),
+                    */
                     if (!Configs.hideGlobalAvgLabel)
                     Container(
                         padding: EdgeInsets.symmetric(
