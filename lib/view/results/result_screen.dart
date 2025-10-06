@@ -443,7 +443,7 @@ class _ResultScreenState extends State<ResultScreen> {
           applyGlobalAvgCorrections();
 
           allCorrectionsToShowInFinalReport.addAll(matchedCorrections);
-          allCorrectionsToShowInFinalReport.addAll(globalCorrections);
+          //allCorrectionsToShowInFinalReport.addAll(globalCorrections);
           allCorrectionsToShowInFinalReport.addAll(matchedCorrectionsOutOfPriorityList);
 
           storeQuestions();
