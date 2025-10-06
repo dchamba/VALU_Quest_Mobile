@@ -86,6 +86,7 @@ class _ResultScreenState extends State<ResultScreen> {
   List<dynamic> matchedCorrections = [];
   List<dynamic> matchedCorrectionsOutOfPriorityList = [];
   List<dynamic> matchedNotLastCorrections = [];
+  List<dynamic> globalCorrections = [];
   List<dynamic> allCorrectionsToShowInFinalReport = [];
 
   void setLoading(bool status) {
@@ -382,45 +383,6 @@ class _ResultScreenState extends State<ResultScreen> {
       //}).toList();
       allBlockAverageUpdated += allBlockAverage;
 
-
-      // Secondo passaggio: Controlliamo ora solo le correzioni "Global Value"
-      List<dynamic> globalCorrections = [];
-      for (var correction in corrections) {
-        List<dynamic> conditions = correction['conditions'];
-        if (conditions.isEmpty) continue;
-
-        bool? globalResult;
-        bool isGlobalCorrection = false;
-
-        for (var condition in conditions) {
-          if (condition['conditionType'] == "Global Value") {
-            globalResult = calculateAndValidate(
-                previousResult: globalResult,
-                condition: condition,
-                value: allBlockAverageUpdated);
-
-            if (globalResult) {
-              condition['isApplied'] = 1;
-              isGlobalCorrection = true; // Identifica che è una correzione "Global Value"
-            }
-          }
-        }
-
-        // Aggiungiamo la correzione solo se la condizione "Global Value" è verificata
-        if (isGlobalCorrection && (globalResult != null && globalResult)) {
-          globalCorrections.add(correction);
-        }
-      }
-
-      // Applichiamo solo le correzioni "Global Value" trovate valide
-      for (var correction in globalCorrections) {
-        matchedCorrections.add(correction);
-        applicableCorrections.add(correction);
-        if (correction['valueToAdd'] != null) {
-          allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
-        }
-      }
-
       sendCorrectionsToServer();
     } catch (e) {
       setLoading(false);
@@ -478,7 +440,10 @@ class _ResultScreenState extends State<ResultScreen> {
             allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
           }).toList();
 
+          applyGlobalAvgCorrections();
+
           allCorrectionsToShowInFinalReport.addAll(matchedCorrections);
+          allCorrectionsToShowInFinalReport.addAll(globalCorrections);
           allCorrectionsToShowInFinalReport.addAll(matchedCorrectionsOutOfPriorityList);
 
           storeQuestions();
@@ -492,6 +457,46 @@ class _ResultScreenState extends State<ResultScreen> {
       setLoading(false);
     }
     setLoading(false);
+  }
+
+  void applyGlobalAvgCorrections(){
+
+    // Secondo passaggio: Controlliamo ora solo le correzioni "Global Value"
+    for (var correction in corrections) {
+      List<dynamic> conditions = correction['conditions'];
+      if (conditions.isEmpty) continue;
+
+      bool? globalResult;
+      bool isGlobalCorrection = false;
+
+      for (var condition in conditions) {
+        if (condition['conditionType'] == "Global Value") {
+          globalResult = calculateAndValidate(
+              previousResult: globalResult,
+              condition: condition,
+              value: allBlockAverageUpdated);
+
+          if (globalResult) {
+            condition['isApplied'] = 1;
+            isGlobalCorrection = true; // Identifica che è una correzione "Global Value"
+          }
+        }
+      }
+
+      // Aggiungiamo la correzione solo se la condizione "Global Value" è verificata
+      if (isGlobalCorrection && (globalResult != null && globalResult)) {
+        globalCorrections.add(correction);
+      }
+    }
+
+    // Applichiamo solo le correzioni "Global Value" trovate valide
+    for (var correction in globalCorrections) {
+      matchedCorrections.add(correction);
+      applicableCorrections.add(correction);
+      if (correction['valueToAdd'] != null) {
+        allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
+      }
+    }
   }
 
   bool dataStored = false;
