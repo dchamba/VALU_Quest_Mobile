@@ -491,7 +491,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
     // Applichiamo solo le correzioni "Global Value" trovate valide
     for (var correction in globalCorrections) {
-      matchedCorrections.add(correction);
+      //matchedCorrections.add(correction);
       applicableCorrections.add(correction);
       if (correction['valueToAdd'] != null) {
         allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
