@@ -10,12 +10,14 @@ class BMICalculator extends StatefulWidget {
   final String gender;
   final String dob;
   final String email;
+  final double? targetAverage; // Aggiungi questa linea
   const BMICalculator(
       {super.key,
       required this.name,
       required this.surname,
       required this.gender,
       required this.dob,
+      required this.targetAverage,
       required this.email});
 
   @override
@@ -166,6 +168,7 @@ class _BMICalculatorState extends State<BMICalculator> {
                                   name: widget.name,
                                   surname: widget.surname,
                                   dob: widget.dob,
+                                  targetAverage: widget.targetAverage, // Passa il valore qui
                                   gender: widget.gender,
                                   email: widget.email,
                                   bmi: double.parse(_bmi.toStringAsFixed(1)),

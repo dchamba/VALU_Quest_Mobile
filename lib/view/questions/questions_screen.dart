@@ -1,3 +1,5 @@
+// questions_screen.dart (CON LA NUOVA LOGICA DI SUGGERIMENTO)
+
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:convert';
@@ -23,16 +25,18 @@ class QuestionsScreen extends StatefulWidget {
   final double bmi;
   final String height;
   final String weight;
+  final double? targetAverage;
   const QuestionsScreen(
       {super.key,
-      required this.name,
-      required this.email,
-      required this.gender,
-      required this.dob,
-      required this.surname,
-      required this.bmi,
-      required this.height,
-      required this.weight});
+        required this.name,
+        required this.email,
+        required this.gender,
+        required this.dob,
+        required this.surname,
+        required this.bmi,
+        required this.height,
+        required this.weight,
+        this.targetAverage});
 
   @override
   State<QuestionsScreen> createState() => _QuestionsScreenState();
@@ -52,10 +56,20 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
   TextEditingController answerController = TextEditingController();
 
   String? surveyMode;
+
+  // MODIFICA: Variabili per la modalità suggerimento
+  bool _isSuggestionMode = false;
+  Option? _suggestedOption;
+  double _cumulativeSumForSuggestion = 0.0;
+  int _answeredQuestionsCountForSuggestion = 0;
+
+
   void setLoading(bool status) {
-    setState(() {
-      questionsLoading = status;
-    });
+    if (mounted) {
+      setState(() {
+        questionsLoading = status;
+      });
+    }
   }
 
   Future<void> loadQuestions() async {
@@ -74,6 +88,11 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             questions.add(QuestionsModel.fromJson(question));
           }).toList();
           surveyMode = jsonDecode(response.body)['surveyMode'];
+
+          // MODIFICA: Se in modalità suggerimento, calcola il primo suggerimento
+          if (_isSuggestionMode) {
+            _calculateSuggestion();
+          }
         }
       } else {
         setLoading(false);
@@ -116,52 +135,26 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             questions.insertAll(currentQuestionIndex + 1, childQuestion);
           } else {
             if (isSequenceChange == false) {
-                treeQuestions.addAll(childQuestion);
+              treeQuestions.addAll(childQuestion);
             }
             if ( isSequenceChange ) {
-           /*  Random random = Random();
-              for (var question in childQuestion) {
-                int randomIndex = currentQuestionIndex +
-                    1 +
-                    random.nextInt(questions.length - currentQuestionIndex);
-                questions.insert(randomIndex, question);
-              } */
-
-
               Random random = Random();
-
-// Shuffle the child questions to randomize their order
               childQuestion.shuffle();
-
-// List to track used random indices
               Set<int> usedIndices = {};
-
-// Insert each child question at random positions, avoiding duplicates and sequential placement
               for (var question in childQuestion) {
-                // Check if the question already exists in the list to avoid duplicates
                 if (questions.any((q) => q.questionId == question.questionId)) {
-                  continue; // Skip the question if it already exists
+                  continue;
                 }
-
                 int randomIndex;
-
-                // Generate a valid random index ensuring no sequential placement
                 do {
                   randomIndex = currentQuestionIndex + 1 +
                       random.nextInt(questions.length - currentQuestionIndex);
                 } while (usedIndices.contains(randomIndex) ||
                     usedIndices.contains(randomIndex - 1) ||
                     usedIndices.contains(randomIndex + 1));
-
-                // Insert the question at the valid random index
                 questions.insert(randomIndex, question);
-
-                // Track the index to avoid sequential placement
                 usedIndices.add(randomIndex);
               }
-
-
-
             }
           }
         }
@@ -177,19 +170,24 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
   }
 
   Future<void> goNext(String optionId) async {
-    String currentQuestionId =
-        (questions[currentQuestionIndex].questionId ?? "").toString();
-    String questionTreeId =
-        (questions[currentQuestionIndex].questionTreeId ?? "").toString();
-    String nQid = "${currentQuestionId}_$questionTreeId";
-    if (currentQuestionId.isNotEmpty &&
-        questionTreeId.isNotEmpty &&
-        questionTreeId != "0") {
+    String currentQuestionId = (questions[currentQuestionIndex].questionId ?? "").toString();
+    String questionTreeId = (questions[currentQuestionIndex].questionTreeId ?? "").toString();
+
+    // MODIFICA: Aggiorna la somma per il calcolo del prossimo suggerimento
+    if (_isSuggestionMode) {
+      String nQid = "${currentQuestionId}_$questionTreeId";
+      final selectedOptionValue = double.tryParse(selectedAnswers[nQid]?['option_value'] ?? '');
+      if (selectedOptionValue != null) {
+        _cumulativeSumForSuggestion += selectedOptionValue;
+        _answeredQuestionsCountForSuggestion++;
+      }
+    }
+
+    if (currentQuestionId.isNotEmpty && questionTreeId.isNotEmpty && questionTreeId != "0") {
       await loadChildQuestions(currentQuestionId, questionTreeId, optionId);
     }
     isTrue = (questions[currentQuestionIndex].isFixed == "null" || questions[currentQuestionIndex].isFixed == null ) &&
         questions[currentQuestionIndex].isBMI == "0";
-    //print("${questions[currentQuestionIndex].isFixed} : ${questions[currentQuestionIndex].isBMI} = $isTrue");
     if (isTrue && isSequenceChange == false) {
       Random random = Random();
       for (var question in treeQuestions) {
@@ -203,6 +201,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       setState(() {
         currentQuestionIndex++;
       });
+      // MODIFICA: Calcola il suggerimento per la nuova domanda
+      if (_isSuggestionMode) {
+        _calculateSuggestion();
+      }
     } else {
       Navigator.push(
           context,
@@ -222,51 +224,72 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       LogUtils.log("GoNext", "End of Quiz");
     }
 
-    if (selectedAnswers.containsKey(nQid)) {
-      answerController.text = selectedAnswers[nQid]?['option_value'];
+    String nextQuestionId = (questions[currentQuestionIndex].questionId ?? "").toString();
+    String nextQuestionTreeId = (questions[currentQuestionIndex].questionTreeId ?? "").toString();
+    String nextNQid = "${nextQuestionId}_${nextQuestionTreeId}";
+    if (selectedAnswers.containsKey(nextNQid)) {
+      answerController.text = selectedAnswers[nextNQid]?['option_value'];
     } else {
       answerController.clear();
     }
   }
 
-  // void goBack() {
-  //   setState(() {
-  //     if (currentQuestionIndex > 0) {
-  //       currentQuestionIndex--;
-  //     } else {
-  //       LogUtils.log("GoBack", "No previous question");
-  //     }
-  //   });
-  //   if (selectedAnswers.containsKey(
-  //           questions[currentQuestionIndex].questionId.toString()) &&
-  //       questions[currentQuestionIndex].quesType != '2') {
-  //     answerController.text =
-  //         selectedAnswers[questions[currentQuestionIndex].questionId.toString()]
-  //             ?['option_value'];
-  //   } else {
-  //     answerController.clear();
-  //   }
-  // }
+  // ================== NUOVA LOGICA DI SUGGERIMENTO ==================
+
+  void _calculateSuggestion() {
+    final currentQuestion = questions[currentQuestionIndex];
+    if (currentQuestion.quesType == '2' && currentQuestion.options != null && currentQuestion.options!.isNotEmpty) {
+      final bestOption = _findBestOption(currentQuestion.options!);
+      setState(() {
+        _suggestedOption = bestOption;
+      });
+    } else {
+      setState(() {
+        _suggestedOption = null;
+      });
+    }
+  }
+
+  Option? _findBestOption(List<Option> options) {
+    Option? bestOption;
+    double minDifference = double.infinity;
+
+    for (var option in options) {
+      final optionValue = double.tryParse(option.optionValue ?? "");
+      if (optionValue != null) {
+        final hypotheticalSum = _cumulativeSumForSuggestion + optionValue;
+        final hypotheticalAverage = hypotheticalSum / (_answeredQuestionsCountForSuggestion + 1);
+        final difference = (hypotheticalAverage - widget.targetAverage!).abs();
+
+        if (difference < minDifference) {
+          minDifference = difference;
+          bestOption = option;
+        }
+      }
+    }
+    return bestOption;
+  }
+
+  // =================================================================
 
   @override
   void initState() {
-    // ignore: todo
-    // TODO: implement initState
     super.initState();
+    // MODIFICA: Attiva la modalità suggerimento se il target è presente
+    if (widget.targetAverage != null) {
+      _isSuggestionMode = true;
+    }
     loadQuestions();
   }
 
   @override
   void dispose() {
-    // ignore: todo
-    // TODO: implement dispose
     super.dispose();
     answerController.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    print("$currentQuestionIndex : ${questions.length} : ${treeQuestions.length} ");
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: AppColor.backgroundColor,
@@ -280,260 +303,169 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
         padding: const EdgeInsets.all(16.0),
         child: !questionsLoading
             ? questions.isNotEmpty
-                ? SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Domanda ${currentQuestionIndex + 1}',
-                          style: const TextStyle(
-                            fontSize: 20.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 10.0),
-                        Text(
-                          questions[currentQuestionIndex].questionName ??
-                              "No Domanda",
-                          style: const TextStyle(
-                            fontSize: 18.0,
-                          ),
-                        ),
-                        const SizedBox(height: 20.0),
-                        isSelected
-                            ? const Text(
-                                "Risposta obbligatoria*",
-                                style:
-                                    TextStyle(color: Colors.red, fontSize: 18),
-                              )
-                            : const SizedBox.shrink(),
-                        const SizedBox(height: 20.0),
-                        if (questions[currentQuestionIndex].quesType ==
-                            '2') ...[
-                          ...?(questions[currentQuestionIndex].options)
-                              ?.map((option) {
-                            bool shouldShowOption = false;
-                            String nqId =
-                                "${questions[currentQuestionIndex].questionId}_${questions[currentQuestionIndex].questionTreeId}";
-                            if (selectedAnswers.containsKey(nqId)) {
-                              String opId = selectedAnswers[nqId]!['optionId'];
+            ? SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Domanda ${currentQuestionIndex + 1}',
+                style: const TextStyle(
+                  fontSize: 20.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10.0),
+              Text(
+                questions[currentQuestionIndex].questionName ?? "No Domanda",
+                style: const TextStyle(
+                  fontSize: 18.0,
+                ),
+              ),
+              const SizedBox(height: 20.0),
+              isSelected
+                  ? const Text(
+                "Risposta obbligatoria*",
+                style:
+                TextStyle(color: Colors.red, fontSize: 18),
+              )
+                  : const SizedBox.shrink(),
+              const SizedBox(height: 20.0),
+              if (questions[currentQuestionIndex].quesType == '2') ...[
+                ...?(questions[currentQuestionIndex].options)?.map((option) {
+                  String nqId = "${questions[currentQuestionIndex].questionId}_${questions[currentQuestionIndex].questionTreeId}";
+                  bool isThisOptionSelected = selectedAnswers.containsKey(nqId) && selectedAnswers[nqId]!['optionId'] == option.optionId;
+                  // MODIFICA: Controlla se questa opzione è quella suggerita
+                  bool isThisOptionSuggested = _isSuggestionMode && _suggestedOption?.optionId == option.optionId;
 
-                              String opRefId =
-                                  selectedAnswers[nqId]!['refOptionId'] ?? "";
-                              if (opId == option.refOptionId ||
-                                  (option.refOptionId == opRefId)) {
-                                shouldShowOption = true;
-                              }
-                            }
-                            return shouldShowOption ||
-                                    option.refOptionId == null
-                                ? GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        String qId =
-                                            questions[currentQuestionIndex]
-                                                .questionId
-                                                .toString();
-                                        String questionTreeId =
-                                            questions[currentQuestionIndex]
-                                                .questionTreeId
-                                                .toString();
-                                        String nQid = "${qId}_$questionTreeId";
-                                        if (selectedAnswers.containsKey(nQid)) {
-                                          selectedAnswers[nQid]?['optionId'] =
-                                              option.optionId;
-                                          selectedAnswers[nQid]
-                                                  ?['option_value'] =
-                                              option.optionValue;
-                                          selectedAnswers[nQid]
-                                                  ?['refOptionId'] =
-                                              option.refOptionId;
-                                        } else {
-                                          Map<String, dynamic> questionMap = {
-                                            "questionId":
-                                                questions[currentQuestionIndex]
-                                                    .questionId,
-                                            "questionName":
-                                                questions[currentQuestionIndex]
-                                                    .questionName,
-                                            "optionId": option.optionId,
-                                            "option_value": option.optionValue,
-                                            "refOptionId": option.refOptionId,
-                                            "blockId":
-                                                questions[currentQuestionIndex]
-                                                    .blockId,
-                                            "blockName":
-                                                questions[currentQuestionIndex]
-                                                    .blockName,
-                                            "blockNewName":
-                                                questions[currentQuestionIndex]
-                                                    .blockNewName,
-                                            "questionTreeId":
-                                                questions[currentQuestionIndex]
-                                                    .questionTreeId,
-                                          };
-                                          selectedAnswers[nQid] = questionMap;
-                                        }
-                                      });
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(10.0),
-                                      margin: const EdgeInsets.symmetric(
-                                          vertical: 5.0),
-                                      decoration: BoxDecoration(
-                                        color: selectedAnswers[nqId]
-                                                        ?['optionId']
-                                                    .toString() ==
-                                                option.optionId
-                                            ? Colors.blue
-                                            : Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(10.0),
-                                      ),
-                                      child: Text(
-                                        option.optionName!,
-                                        style: TextStyle(
-                                          fontSize: 16.0,
-                                          color: selectedAnswers[nqId]
-                                                      ?['optionId'] ==
-                                                  option.optionId
-                                              ? Colors.white
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink();
-                          }).toList(),
-                        ] else ...[
-                          TextField(
-                            onChanged: (value) {
-                              setState(() {
-                                String qId = questions[currentQuestionIndex]
-                                    .questionId
-                                    .toString();
-                                String questionTreeId =
-                                    questions[currentQuestionIndex]
-                                        .questionTreeId
-                                        .toString();
-                                String nQid = "${qId}_$questionTreeId";
-                                if (selectedAnswers.containsKey(nQid)) {
-                                  selectedAnswers[nQid]?['optionId'] = null;
-                                  selectedAnswers[nQid]?['option_value'] =
-                                      answerController.text;
-                                } else {
-                                  Map<String, dynamic> questionMap = {
-                                    "questionId":
-                                        questions[currentQuestionIndex]
-                                            .questionId,
-                                    "optionId": null,
-                                    "option_value": answerController.text,
-                                    "questionName":
-                                        questions[currentQuestionIndex]
-                                            .questionName,
-                                    "blockId":
-                                        questions[currentQuestionIndex].blockId,
-                                    "blockName": questions[currentQuestionIndex]
-                                        .blockName,
-                                    "blockNewName":
-                                        questions[currentQuestionIndex]
-                                            .blockNewName,
-                                  };
-                                  selectedAnswers[nQid] = questionMap;
-                                }
-                              });
-                            },
-                            controller: answerController,
-                            maxLines: null,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: 'Enter your answer...',
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: BorderSide.none),
-                              filled: true,
-                              fillColor: Colors.white,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 20.0),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            // ElevatedButton(
-                            //   style: ElevatedButton.styleFrom(
-                            //       backgroundColor: AppColor.buttonColor,
-                            //       foregroundColor: AppColor.backgroundColor),
-                            //   onPressed: () {
-                            //     if (FocusScope.of(context).hasFocus) {
-                            //       FocusScope.of(context).unfocus();
-                            //     }
-                            //     setState(() {
-                            //       if (currentQuestionIndex > 0) {
-                            //         currentQuestionIndex--;
-                            //       } else {
-                            //         LogUtils.log("GoBack", "No previous question");
-                            //       }
-                            //     });
-                            //     //goBack();
-                            //   },
-                            //   child: const Text(
-                            //     'Indietro',
-                            //     style: TextStyle(fontSize: 18.0),
-                            //   ),
-                            // ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColor.buttonColor,
-                                  foregroundColor: AppColor.backgroundColor),
-                              onPressed: () {
-                                if (FocusScope.of(context).hasFocus) {
-                                  FocusScope.of(context).unfocus();
-                                }
-                                String qId = questions[currentQuestionIndex]
-                                    .questionId
-                                    .toString();
-                                String questionTreeId =
-                                    questions[currentQuestionIndex]
-                                        .questionTreeId
-                                        .toString();
-                                String nQid = "${qId}_$questionTreeId";
-                                if (selectedAnswers.containsKey(nQid) &&
-                                    selectedAnswers[nQid]!['option_value']
-                                        .toString()
-                                        .isNotEmpty) {
-                                  isSelected = false;
-                                  goNext(
-                                      (selectedAnswers[nQid]["optionId"] ?? "")
-                                          .toString());
-                                } else {
-                                  setState(() {
-                                    isSelected = true;
-                                  });
-                                }
-                              },
-                              child: const Text(
-                                'Avanti',
-                                // currentQuestionIndex < questions.length - 1
-                                //     ? 'Avanti'
-                                //     : 'Fine',
-                                style: TextStyle(fontSize: 18.0),
-                              ),
-                            ),
-                          ],
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        String qId = questions[currentQuestionIndex].questionId.toString();
+                        String questionTreeId = questions[currentQuestionIndex].questionTreeId.toString();
+                        String nQid = "${qId}_$questionTreeId";
+                        Map<String, dynamic> questionMap = {
+                          "questionId": questions[currentQuestionIndex].questionId,
+                          "questionName": questions[currentQuestionIndex].questionName,
+                          "optionId": option.optionId,
+                          "option_value": option.optionValue,
+                          "refOptionId": option.refOptionId,
+                          "blockId": questions[currentQuestionIndex].blockId,
+                          "blockName": questions[currentQuestionIndex].blockName,
+                          "blockNewName": questions[currentQuestionIndex].blockNewName,
+                          "questionTreeId": questions[currentQuestionIndex].questionTreeId,
+                        };
+                        selectedAnswers[nQid] = questionMap;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(10.0),
+                      margin: const EdgeInsets.symmetric(vertical: 5.0),
+                      // MODIFICA: Decorazione dinamica per mostrare selezione e suggerimento
+                      decoration: BoxDecoration(
+                        color: isThisOptionSelected ? Colors.blue : Colors.white,
+                        borderRadius: BorderRadius.circular(10.0),
+                        border: isThisOptionSuggested && !isThisOptionSelected
+                            ? Border.all(color: Colors.green, width: 3.0) // Bordo verde per suggerimento
+                            : null,
+                        boxShadow: isThisOptionSuggested && !isThisOptionSelected
+                            ? [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.5),
+                            blurRadius: 5,
+                            spreadRadius: 1,
+                          )
+                        ]
+                            : [],
+                      ),
+                      child: Text(
+                        option.optionName!,
+                        style: TextStyle(
+                          fontSize: 16.0,
+                          color: isThisOptionSelected ? Colors.white : Colors.black,
                         ),
-                      ],
+                      ),
                     ),
-                  )
-                : const Center(
+                  );
+                }).toList(),
+              ] else ...[
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      String qId = questions[currentQuestionIndex].questionId.toString();
+                      String questionTreeId = questions[currentQuestionIndex].questionTreeId.toString();
+                      String nQid = "${qId}_$questionTreeId";
+                      Map<String, dynamic> questionMap = {
+                        "questionId": questions[currentQuestionIndex].questionId,
+                        "optionId": null,
+                        "option_value": answerController.text,
+                        "questionName": questions[currentQuestionIndex].questionName,
+                        "blockId": questions[currentQuestionIndex].blockId,
+                        "blockName": questions[currentQuestionIndex].blockName,
+                        "blockNewName": questions[currentQuestionIndex].blockNewName,
+                        "questionTreeId": questions[currentQuestionIndex].questionTreeId,
+                      };
+                      selectedAnswers[nQid] = questionMap;
+                    });
+                  },
+                  controller: answerController,
+                  maxLines: null,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    hintText: 'Enter your answer...',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20.0),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColor.buttonColor,
+                        foregroundColor: AppColor.backgroundColor),
+                    onPressed: () {
+                      if (FocusScope.of(context).hasFocus) {
+                        FocusScope.of(context).unfocus();
+                      }
+                      String qId = questions[currentQuestionIndex].questionId.toString();
+                      String questionTreeId = questions[currentQuestionIndex].questionTreeId.toString();
+                      String nQid = "${qId}_$questionTreeId";
+                      if (selectedAnswers.containsKey(nQid) &&
+                          selectedAnswers[nQid]!['option_value']
+                              .toString()
+                              .isNotEmpty) {
+                        isSelected = false;
+                        goNext((selectedAnswers[nQid]["optionId"] ?? "").toString());
+                      } else {
+                        setState(() {
+                          isSelected = true;
+                        });
+                      }
+                    },
                     child: Text(
-                      "No domanda trovata!",
-                      style: TextStyle(color: Colors.black, fontSize: 18),
+                      currentQuestionIndex < questions.length - 1 ? 'Avanti' : 'Fine',
+                      style: const TextStyle(fontSize: 18.0),
                     ),
-                  )
+                  ),
+                ],
+              ),
+            ],
+          ),
+        )
+            : const Center(
+          child: Text(
+            "No domanda trovata!",
+            style: TextStyle(color: Colors.black, fontSize: 18),
+          ),
+        )
             : Center(
-                child: LoadingAnimationWidget.inkDrop(
-                    color: AppColor.buttonColor, size: 50)),
+            child: LoadingAnimationWidget.inkDrop(
+                color: AppColor.buttonColor, size: 50)),
       ),
     );
   }
