@@ -1,18 +1,14 @@
 // ignore_for_file: use_build_context_synchronously
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart'; // CORRETTO (era package.flutter)
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:spider_chart/spider_chart.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:valu_quest/APIs/configs.dart';
 import 'package:valu_quest/Utils/app_colors.dart';
 import 'package:valu_quest/Utils/log_utils.dart';
-import 'package:valu_quest/test.dart';
-import 'package:valu_quest/view/bmi/bmi_calculator.dart';
 import 'package:valu_quest/view/register/registration_screen.dart';
 import 'package:valu_quest/view/results/widgets/table.dart';
 
@@ -33,15 +29,15 @@ class ResultScreen extends StatefulWidget {
   final String weight;
   const ResultScreen(
       {super.key,
-      required this.selectedAnswers,
-      required this.name,
-      required this.surname,
-      required this.gender,
-      required this.dob,
-      required this.email,
-      required this.bmi,
-      required this.height,
-      required this.weight});
+        required this.selectedAnswers,
+        required this.name,
+        required this.surname,
+        required this.gender,
+        required this.dob,
+        required this.email,
+        required this.bmi,
+        required this.height,
+        required this.weight});
 
   @override
   State<ResultScreen> createState() => _ResultScreenState();
@@ -49,6 +45,10 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool isLoading = true;
+  bool dataStored = false;
+
+  // Dati ricevuti dal server
+  Map<String, dynamic>? apiResultData;
 
   List<Color> colors = [
     Colors.deepPurpleAccent,
@@ -70,500 +70,150 @@ class _ResultScreenState extends State<ResultScreen> {
     Colors.lightBlue,
     Colors.greenAccent,
   ];
-  List<double> blockAverages = [];
-  double allBlockAverage = 0.0;
-  double allBlockAverageUpdated = 0.0;
-  List<String> sortedUniqueBlockIds = [];
-  List<String> sortedUniqueBlockNames = [];
-  List<String> sortedUniqueBlockNewNames = [];
   List<Color> blockColors = [];
-  List<Map<int, double>>? sortedBlockAverageWithID = [];
-  Map<String, double> sortedBlockAverageWithIDMap = {};
-  List columnDataBlockAverage = [];
-  List columnDataFreeText = [];
-  List<dynamic> corrections = [];
-  List<dynamic> applicableCorrections = [];
-  List<dynamic> matchedCorrections = [];
-  List<dynamic> matchedCorrectionsOutOfPriorityList = [];
-  List<dynamic> matchedNotLastCorrections = [];
-  List<dynamic> globalCorrections = [];
-  List<dynamic> allCorrectionsToShowInFinalReport = [];
+
+
+  @override
+  void initState() {
+    super.initState();
+    // Chiama la nuova funzione singola al caricamento
+    processAndStoreQuestionnaire();
+  }
 
   void setLoading(bool status) {
-    setState(() {
-      isLoading = status;
-    });
-  }
-
-  Future<void> getCorrections() async {
-    setLoading(true);
-    corrections.clear();
-    try {
-      final response = await http.get(
-        Uri.parse("${URLs.baseURL}${URLs.getCorrectionsURL}"),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      );
-      if (response.statusCode == 200) {
-        LogUtils.log("API : ${URLs.baseURL}${URLs.getCorrectionsURL}",
-            jsonDecode(response.body)['data']);
-
-        if (jsonDecode(response.body)['success'] == true) {
-          List<dynamic> data = jsonDecode(response.body)['data'];
-          corrections = data;
-          if (kDebugMode) {
-            print("Corrections : total : ${data.length} > $corrections");
-          }
-        }
-      } else {
-        setLoading(false);
-        LogUtils.log("getCorrections(): ${response.statusCode}", response);
-      }
-    } catch (e) {
-      setLoading(false);
-      LogUtils.log("getCorrections()", e);
-    }
-    calculations(widget.selectedAnswers);
-  }
-
-  void calculations(Map<String, dynamic> answers) {
-    if (isLoading == false) {
-      setLoading(true);
-    }
-
-    blockAverages.clear();
-    sortedUniqueBlockIds.clear();
-    blockColors.clear();
-    allBlockAverage = 0.0;
-    columnDataBlockAverage.clear();
-    columnDataFreeText.clear();
-    sortedUniqueBlockNames.clear();
-    sortedUniqueBlockNewNames.clear();
-    sortedBlockAverageWithID!.clear();
-    sortedBlockAverageWithIDMap.clear();
-
-    try {
-      Set<int> uniqueBlockIds = {};
-      Map<String, List<double>> blockValues = {};
-      answers.forEach((key, value) {
-        if (value['optionId'] != null) {
-          //int blockId = int.parse(value['blockNewName'].split(" ")[1]);
-          int blockId = int.parse(value['blockId']);
-          String blockName = value['blockName'] ?? "";
-          double optionValue = double.parse(value['option_value'].toString());
-          uniqueBlockIds.add(blockId);
-          if (!blockValues.containsKey(blockName)) {
-            blockValues[blockName] = [optionValue];
-          } else {
-            blockValues[blockName]!.add(optionValue);
-          }
-        }
+    if (mounted) {
+      setState(() {
+        isLoading = status;
       });
-
-      var sortedBlockValues = Map.fromEntries(blockValues.entries.toList()
-        ..sort((a, b) {
-          int keyA = int.parse(a.key.split("-")[0].split(" ")[1]);
-          int keyB = int.parse(b.key.split("-")[0].split(" ")[1]);
-
-          return keyA.compareTo(keyB);
-        }));
-      sortedBlockValues.entries.toList().map((e) {
-        sortedUniqueBlockNewNames.add(e.key.split("-").first);
-      }).toList();
-
-      sortedBlockValues.forEach((blockId, values) {
-        double sum = values.reduce((value, element) => value + element);
-        double average = sum / values.length;
-        average = double.parse(average.toStringAsFixed(1));
-        blockAverages.add(average);
-      });
-      sortedUniqueBlockIds = uniqueBlockIds.toList().map((id) => id.toString()).toList();
-      sortedUniqueBlockIds.sort((a, b) => int.parse(a).compareTo(int.parse(b)));
-
-      sortedUniqueBlockNames.addAll(sortedBlockValues.keys);
-      double allBlockSum = 0.0;
-      for (var element in blockAverages) {
-        allBlockSum += element;
-      }
-      allBlockAverage = double.parse(
-          (allBlockSum / sortedUniqueBlockIds.length).toStringAsFixed(2));
-
-      for (var i = 0; i < sortedUniqueBlockIds.length; i++) {
-        if (sortedUniqueBlockIds.length < colors.length) {
-          blockColors.add(colors[i]);
-        }
-        sortedBlockAverageWithIDMap[sortedUniqueBlockIds[i]] = blockAverages[i];
-        sortedBlockAverageWithID!.add({int.parse(sortedUniqueBlockIds[i]): blockAverages[i]});
-
-        columnDataBlockAverage.add({
-          "id": sortedBlockValues.keys.elementAt(i),
-          "average": blockAverages[i]
-        });
-      }
-
-      // columnDataBlockAverage
-      //     .add({"id": "Media Globale", "average": allBlockAverage});
-
-      answers.forEach((key, value) {
-        if (value['optionId'] == null) {
-          columnDataFreeText.add(
-              {"id": value['questionName'], "average": value["option_value"]});
-        }
-      });
-      applyCorrections();
-
-      if (kDebugMode) {
-        print("Block IDs: $sortedUniqueBlockIds");
-        print("Total Blocks: ${sortedUniqueBlockIds.length}");
-        print("Total Blocks: ${sortedBlockValues}");
-        print("Average Option Values for Each Block:");
-        for (var entry in blockAverages) {
-          if (kDebugMode) {
-            print("Block $entry");
-          }
-        }
-      }
-    } catch (e) {
-      setLoading(false);
-      LogUtils.log("calculation()", e.toString());
     }
   }
 
-  bool calculateAndValidate({
-    required dynamic condition,
-    required double value,
-    bool? previousResult,
-    bool betweenOperator = false,
-  }) {
-    bool result = false;
-
-    double value1 = double.parse(condition['conditionValue1'].toString());
-
-    String conjunction = condition['conjunction'];
-
-    switch (condition["operator"]) {
-      case "=":
-        result = value == value1;
-        break;
-      case "!=":
-        result = value != value1;
-        break;
-      case ">":
-        result = value > value1;
-        break;
-      case "<":
-        result = value < value1;
-        break;
-      case ">=":
-        result = value >= value1;
-        break;
-      case "<=":
-        result = value <= value1;
-        break;
-      case "between":
-        double value2 = double.parse(condition['conditionValue2'].toString());
-        result = value >= value1 && value <= value2;
-        break;
-      default:
-        throw Exception("Unsupported operator: ${condition["operator"]}");
-    }
-    //print("$value $value1 ${condition["operator"]} $value2 $result");
-    if (previousResult != null) {
-      if (conjunction == "AND") {
-        result = previousResult && result;
-      } else if (conjunction == "OR") {
-        result = previousResult || result;
-      } else if (conjunction == "None") {
-        //fix Chamba
-        //result = previousResult;
-      } else {
-        throw Exception("Unsupported conjunction: $conjunction");
-      }
-    }
-    return result;
-  }
-
-  Future<void> applyCorrections() async {
-    allBlockAverageUpdated = 0.0;
-    matchedCorrections.clear();
-    applicableCorrections.clear();
-    try {
-      for (var correction in corrections) {
-        List<dynamic> conditions = correction['conditions'];
-
-        bool? previousResult;
-        bool skipRestConditions = false;
-        if (kDebugMode) {
-          print(
-              "Correct Id = ${correction['correctionId']} ${correction['valueToAdd']} : length = ${conditions.length}");
-        }
-        for (var condition in conditions) {
-          condition['isApplied'] = 0;
-          String currentConjunction = condition['conjunction'];
-          String? previousConjunction;
-          if (kDebugMode) {
-            print("conditionType = ${condition['conditionType']}");
-          }
-          if (condition['conditionType'] == "Block") {
-            var blockForConditionCheck = sortedBlockAverageWithID!.firstWhere((block) => block.entries.first.key == int.parse(condition['blockId'].toString()), orElse: () => {},);
-
-            if (blockForConditionCheck.isNotEmpty) {
-              previousResult = calculateAndValidate(
-                  previousResult: previousResult,
-                  condition: condition,
-                  value: blockForConditionCheck.entries.first.value);
-
-              if (previousResult == true) {
-                condition['isApplied'] = 1;
-                break;
-              }
-
-              if (currentConjunction == "AND" && previousResult == false) {
-                skipRestConditions = true;
-                if (kDebugMode) {
-                  print("skipRestConditions = $skipRestConditions");
-                }
-                break;
-              }
-            }
-            if (currentConjunction == "AND" && previousResult == null) {
-              skipRestConditions = true;
-              if (kDebugMode) {
-                print("skipRestConditions = $skipRestConditions");
-              }
-            }
-          } else if (condition['conditionType'] == "Global Value") {
-            skipRestConditions = true;
-          } else if (condition['conditionType'] == "BMI Value") {
-            previousResult = calculateAndValidate(
-                previousResult: previousResult,
-                condition: condition,
-                value: widget.bmi);
-
-            if (previousResult == true) {
-              condition['isApplied'] = 1;
-            }
-
-            if (currentConjunction == "AND" && previousResult == false) {
-              skipRestConditions = true;
-            }
-          } else {
-            throw Exception(
-                "Unsupported conditionType: ${condition['conditionType']}");
-          }
-
-          if (skipRestConditions) {
-            if (kDebugMode) {
-              print("skipped");
-            }
-            break;
-          }
-
-          if (previousConjunction != null) {
-            if (previousConjunction == "AND" && previousResult! == false) {
-              previousResult = false;
-            }
-          }
-          previousConjunction = currentConjunction;
-          if (kDebugMode) {
-            print(
-                "Current conjunction = $currentConjunction previousResult = $previousResult : ${(currentConjunction == "AND" && previousResult == false)}");
-          }
-        }
-
-        //==
-        if (previousResult == true) {
-          matchedCorrections.add(correction);
-          applicableCorrections.add(correction);
-        }
-      }
-      //matchedCorrections.map((correction) {
-      //  allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
-      //}).toList();
-      allBlockAverageUpdated += allBlockAverage;
-
-      sendCorrectionsToServer();
-    } catch (e) {
-      setLoading(false);
-      LogUtils.log("applyCorrections()", e.toString());
-    }
-  }
-
-  Future<void> sendCorrectionsToServer() async {
-    try {
-      setLoading(true);
-      final response = await http.post(
-        Uri.parse("${URLs.baseURL}${URLs.getCorrectionsFilteredByPriorityList}"),
-        headers: {'Content-Type': 'application/json', },
-        body: jsonEncode({"matchedCorrections": matchedCorrections, }),
-      );
-
-      if (response.statusCode == 200) {
-        LogUtils.log("API : ${URLs.baseURL}${URLs.getCorrectionsFilteredByPriorityList}", response.body);
-
-        // Decodifica l'intera risposta
-        final json = jsonDecode(response.body);
-
-        if (json['success'] == true) {
-          // Estrai entrambi gli array
-          final List<dynamic> primaryIds = json['matchedLastAppliedCorrectionIdsFromPriorityList'] ?? [];
-          final List<dynamic> secondaryIds = json['matchedNotLastCorrections'] ?? [];
-          final List<dynamic> primaryIdsNotFromPriortyList = json['appliedCorrectionIdsOutOfPriorityList'] ?? [];
-
-          // converto in Set<String> per confronto veloce
-          final Set<String> primarySet = primaryIds.map((e) => e.toString()).toSet();
-          final Set<String> secondarySet = secondaryIds.map((e) => e.toString()).toSet();
-          final Set<String> primarySetNotFromPriortyList = primaryIdsNotFromPriortyList.map((e) => e.toString()).toSet();
-
-          // Filtra dalla lista completa
-          matchedNotLastCorrections = applicableCorrections.where((correction) {
-            final id = correction['correctionId'].toString();
-            return secondarySet.contains(id);
-          }).toList();
-
-          matchedCorrections = applicableCorrections.where((correction) {
-            final id = correction['correctionId'].toString();
-            return primarySet.contains(id);
-          }).toList();
-
-          matchedCorrectionsOutOfPriorityList = applicableCorrections.where((correction) {
-            final id = correction['correctionId'].toString();
-            return primaryIdsNotFromPriortyList.contains(id);
-          }).toList();
-
-          matchedCorrections.map((correction) {
-            allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
-          }).toList();
-
-          matchedCorrectionsOutOfPriorityList.map((correction) {
-            allBlockAverageUpdated += double.parse(correction['valueToAdd'].toString());
-          }).toList();
-
-          applyGlobalAvgCorrections();
-
-          allCorrectionsToShowInFinalReport.addAll(matchedCorrections);
-          allCorrectionsToShowInFinalReport.addAll(globalCorrections);
-          allCorrectionsToShowInFinalReport.addAll(matchedCorrectionsOutOfPriorityList);
-
-          storeQuestions();
-        }
-      } else {
-        LogUtils.log("Errore durante il filtro delle correzioni su liste priorità: ${response.statusCode}", response);
-        setLoading(false);
-      }
-    } catch (e) {
-      LogUtils.log("Errore durante l'invio delle correzioni al server", e.toString());
-      setLoading(false);
-    }
-    setLoading(false);
-  }
-
-  void applyGlobalAvgCorrections(){
-
-    // Secondo passaggio: Controlliamo ora solo le correzioni "Global Value"
-    for (var correction in corrections) {
-      List<dynamic> conditions = correction['conditions'];
-      if (conditions.isEmpty) continue;
-
-      bool? globalResult;
-      bool isGlobalCorrection = false;
-
-      for (var condition in conditions) {
-        if (condition['conditionType'] == "Global Value") {
-          globalResult = calculateAndValidate(
-              previousResult: globalResult,
-              condition: condition,
-              value: allBlockAverageUpdated);
-
-          if (globalResult) {
-            condition['isApplied'] = 1;
-            isGlobalCorrection = true; // Identifica che è una correzione "Global Value"
-          }
-        }
-      }
-
-      // Aggiungiamo la correzione solo se la condizione "Global Value" è verificata
-      if (isGlobalCorrection && (globalResult != null && globalResult)) {
-        globalCorrections.add(correction);
-      }
-    }
-
-    // Applichiamo solo le correzioni "Global Value" trovate valide
-    for (var correction in globalCorrections) {
-      //matchedCorrections.add(correction);
-      applicableCorrections.add(correction);
-      if (correction['valueToAdd'] != null) {
-        allBlockAverageUpdated += double.tryParse(correction['valueToAdd'].toString()) ?? 0.0;
-      }
-    }
-  }
-
-  bool dataStored = false;
-  Future<void> storeQuestions() async {
+  /// Funzione singola che invia i dati grezzi,
+  /// attende i calcoli dal server e riceve i risultati pronti per la UI.
+  Future<void> processAndStoreQuestionnaire() async {
     setLoading(true);
     try {
       final response = await http.post(
-        Uri.parse("${URLs.baseURL}${URLs.storeQuestionsURL}"),
+        Uri.parse("${URLs.baseURL}${URLs.processQuestionnaireURL}"),
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
+          // Dati utente
           "name": widget.name,
           "surname": widget.surname,
           "gender": widget.gender == "Male" ? "1" : "2",
           "dob": widget.dob,
           "email": widget.email,
-          "selectedAnswers": widget.selectedAnswers,
-          "globalAvgVal_org": allBlockAverage,
           "bmiValue": widget.bmi,
           "height": widget.height,
           "weight": widget.weight,
-          "blockAverageWithID": sortedBlockAverageWithIDMap,
-          "globalValue_after": allBlockAverageUpdated,
-          "matchedLastCorrections": matchedCorrections,
-          "matchedCorrectionsOutOfPriorityList": matchedCorrectionsOutOfPriorityList,
-          "matchedNotLastCorrections": matchedNotLastCorrections
+          // Dati grezzi del questionario
+          "selectedAnswers": widget.selectedAnswers,
         }),
       );
+
       LogUtils.log(
-          "API : ${URLs.baseURL}${URLs.storeQuestionsURL} ", response.body);
-      if (response.statusCode == 200 &&
-          jsonDecode(response.body)['success'] == true) {
-        LogUtils.log("API : ${URLs.baseURL}${URLs.storeQuestionsURL}",
-            jsonDecode(response.body));
-        //SnacbarUtils.show(context, "Sondaggio completato con successo !", false);
-        setState(() {
-          dataStored = true;
-        });
-        LogUtils.log("storeQuestions(): ${response.statusCode}", "Data Inserted successfully!");
+          "API : ${URLs.baseURL}${URLs.processQuestionnaireURL} ", response.body);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+
+        if (body['success'] == true) {
+          LogUtils.log("processAndStoreQuestionnaire()", "Dati processati e salvati con successo!");
+
+          // Prepara i colori per il radar chart in base al numero di blocchi ricevuti
+          final List averages = body['data']['blockAverages'] ?? [];
+          final int numBlocks = averages.length;
+
+          blockColors.clear();
+          for (var i = 0; i < numBlocks; i++) {
+            if (i < colors.length) {
+              blockColors.add(colors[i]);
+            } else {
+              blockColors.add(colors[i % colors.length]); // Ricicla colori se finiscono
+            }
+          }
+
+          if (mounted) {
+            setState(() {
+              apiResultData = body['data']; // Salva i dati per la build()
+              dataStored = true;
+            });
+          }
+
+        } else {
+          // Errore logico dal server (es. dati mancanti)
+          LogUtils.log("processAndStoreQuestionnaire() Errore Server", body['message'] ?? "Errore sconosciuto");
+          if (mounted) {
+            Navigator.pop(context);
+            SnacbarUtils.show(context, "Errore dal server: ${body['message']}", true);
+          }
+        }
       } else {
-        setLoading(false);
-        Navigator.pop(context);
-        SnacbarUtils.show(context, "Qualcosa è andato storto!, Errore: ${response.statusCode} ", true);
-        LogUtils.log("storeQuestions(): ${response.statusCode}", response);
+        // Errore HTTP (404, 500, ecc)
+        if (mounted) {
+          Navigator.pop(context);
+          SnacbarUtils.show(context, "Errore di connessione: ${response.statusCode} ", true);
+        }
+        LogUtils.log("processAndStoreQuestionnaire(): ${response.statusCode}", response);
       }
     } catch (e) {
-      setLoading(false);
-      SnacbarUtils.show(context, e.toString(), true);
+      // Eccezione (es. parsing JSON fallito, niente internet)
+      if(mounted){
+        Navigator.pop(context);
+        SnacbarUtils.show(context, e.toString(), true);
+      }
+      LogUtils.log("processAndStoreQuestionnaire() Eccezione", e);
     }
+
     setLoading(false);
   }
 
   @override
-  void initState() {
-    super.initState();
-    getCorrections();
-  }
-
-  @override
   Widget build(BuildContext context) {
+
+    // Variabili locali estratte dai dati API (solo quando non è in loading e abbiamo dati)
+    List<double> blockAverages = [];
+    List<String> sortedUniqueBlockNewNames = [];
+    List<dynamic> columnDataFreeText = [];
+    List<dynamic> allCorrectionsToShowInFinalReport = [];
+    double allBlockAverageUpdated = 0.0;
+    List<ChartData> chartData = [];
+    int firstBlockId = 0;
+    int lastBlockId = 0;
+
+    if (!isLoading && apiResultData != null) {
+      try {
+        // Parsing sicuro dei dati JSON
+        blockAverages = (apiResultData!['blockAverages'] as List).map((e) => (e as num).toDouble()).toList();
+        sortedUniqueBlockNewNames = (apiResultData!['sortedUniqueBlockNewNames'] as List).map((e) => e.toString()).toList();
+        columnDataFreeText = apiResultData!['columnDataFreeText'] as List;
+        allCorrectionsToShowInFinalReport = apiResultData!['allCorrectionsToShowInFinalReport'] as List;
+        allBlockAverageUpdated = (apiResultData!['allBlockAverageUpdated'] as num).toDouble();
+
+        // Conversione Mappa -> Lista per Grafico a Linee
+        final Map<String, dynamic> blockAvgMap = Map<String, dynamic>.from(apiResultData!['sortedBlockAverageWithIDMap']);
+        chartData = blockAvgMap.entries.map((e) => ChartData(int.parse(e.key), (e.value as num).toDouble())).toList();
+
+        if (chartData.isNotEmpty) {
+          chartData.sort((a, b) => a.x.compareTo(b.x)); // Assicura l'ordine per asse X
+          firstBlockId = chartData.first.x;
+          lastBlockId = chartData.last.x;
+        }
+      } catch (e) {
+        LogUtils.log("Errore parsing dati build()", e);
+      }
+    }
+
+
     return WillPopScope(
       onWillPop: () {
+        // Se i dati sono salvati, il tasto indietro porta alla registrazione
         if (dataStored == true) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const RegistrationScreen()),
-            (route) => false,
+                (route) => false,
           );
         }
         return Future(() => dataStored == true ? false : true);
@@ -576,362 +226,248 @@ class _ResultScreenState extends State<ResultScreen> {
           centerTitle: true,
           foregroundColor: Colors.black,
         ),
-        body: !isLoading ?
-              SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Column(
-                  children: [
-                    //table block result
-                    /* Padding(
-                      padding: const EdgeInsets.only(
-                        right: 10,
-                        left: 10,
-                        bottom: 20,
+        body: !isLoading && apiResultData != null
+            ? SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+
+              // --- 1. SPIDER CHART (RADAR) ---
+              if (blockAverages.isNotEmpty && (!Configs.hideRadarChart))
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.only(top: 40, bottom: 40),
+                  color: Colors.white30,
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.6,
+                    height: MediaQuery.of(context).size.width * 0.6,
+                    child: SpiderChart(
+                      data: blockAverages,
+                      labels: sortedUniqueBlockNewNames,
+                      decimalPrecision: 1,
+                      colors: blockColors,
+                    ),
+                  ),
+                )
+              else if (blockAverages.isEmpty && !Configs.hideRadarChart)
+                const Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: Text("Dati insufficienti per generare il grafico."),
+                ),
+
+              const SizedBox(height: 20),
+
+              // --- 2. LINE CHART (TABLE VISUALIZATION) ---
+              if (!Configs.hideBlockAvgTable && chartData.isNotEmpty)
+                SizedBox(
+                  height: 400,
+                  child: SfCartesianChart(
+                      margin: const EdgeInsets.only(
+                          right: 15, left: 15, top: 15),
+                      primaryYAxis: NumericAxis(
+                        minimum: 0,
+                        maximum: 6,
+                        interval: 0.5,
+                        majorGridLines: const MajorGridLines(width: 0),
+                        plotBands: <PlotBand>[
+                          PlotBand(
+                            isVisible: true,
+                            start: 2.5,
+                            end: 5,
+                            color: Colors.green.shade200,
+                          ),
+                        ],
                       ),
-                      child: TableWidget(
-                          headerText: const ["Blocco", "Resultati"],
-                          columnData: columnDataBlockAverage),
-                    ),
-                    */
+                      primaryXAxis: CategoryAxis(
+                        labelRotation: 90,
+                        labelIntersectAction: AxisLabelIntersectAction.none,
+                        interval: 1,
+                        labelAlignment: LabelAlignment.end,
+                        majorTickLines: const MajorTickLines(width: 0),
+                        majorGridLines: const MajorGridLines(width: 0),
+                        labelStyle: const TextStyle(fontSize: 10),
+                        associatedAxisName: "Blocco",
 
-                    //spider chart
-                    if(blockAverages.length == sortedUniqueBlockIds.length && (!Configs.hideRadarChart))
-                        Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.only(top: 40, bottom: 40),
-                            color: Colors.white30,
-                            child: SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.6,
-                              height: MediaQuery.of(context).size.width * 0.6,
-                              //visible:isRadarChartVisible,
-                              child: SpiderChart(
-                                data: blockAverages,
-                                labels: sortedUniqueBlockNewNames,
-                                decimalPrecision: 1,
-                                colors: blockColors,
-                              ),
-                            ),
-                          )
-                        else if(blockAverages.length != sortedUniqueBlockIds.length)
-                          const Text("Something went wrong!"),
-
-                    const SizedBox(
-                      height: 20,
-                    ),
-                    if (!Configs.hideBlockAvgTable)
-                    SizedBox(
-                      height: 400,
-                      child: SfCartesianChart(
-                          margin: const EdgeInsets.only(
-                              right: 15, left: 15, top: 15),
-                          primaryYAxis: NumericAxis(
-                            minimum: 0,
-                            maximum: 6,
-                            interval: 0.5,
-                            majorGridLines: const MajorGridLines(width: 0),
-                            plotBands: <PlotBand>[
-                              PlotBand(
+                        axisLabelFormatter: (axisLabelRenderArgs) => ChartAxisLabel(
+                            "${axisLabelRenderArgs.axis.associatedAxisName} ${axisLabelRenderArgs.text}",
+                            const TextStyle() // Usa lo stile definito sopra
+                        ),
+                      ),
+                      tooltipBehavior: TooltipBehavior(
+                          enable: true,
+                          format: 'Blocco point.x : point.y ',
+                          header: "Risultati"),
+                      backgroundColor: Colors.white30,
+                      series: <CartesianSeries>[
+                        // Linea Blu (Valori Blocchi)
+                        LineSeries<ChartData, int>(
+                          dataLabelSettings: const DataLabelSettings(
+                            isVisible: true,
+                          ),
+                          color: Colors.blue,
+                          markerSettings: const MarkerSettings(
+                            isVisible: true,
+                          ),
+                          dataSource: chartData,
+                          xValueMapper: (ChartData data, _) => data.x,
+                          yValueMapper: (ChartData data, _) => data.y,
+                        ),
+                        // Linea Rossa (Media Globale)
+                        LineSeries<ChartData, int>(
+                            color: Colors.red,
+                            enableTooltip: false,
+                            dataLabelSettings: const DataLabelSettings(
                                 isVisible: true,
-                                start: 2.5,
-                                end: 5,
-                                color: Colors.green.shade200,
-                              ),
+                                textStyle: TextStyle(color: Colors.red)),
+                            markerSettings: const MarkerSettings(
+                              isVisible: true,
+                            ),
+                            dataSource: [
+                              ChartData(
+                                  firstBlockId,
+                                  double.parse(allBlockAverageUpdated
+                                      .toStringAsFixed(2))),
+                              ChartData(
+                                  lastBlockId,
+                                  double.parse(allBlockAverageUpdated
+                                      .toStringAsFixed(2)))
                             ],
-                          ),
-                          primaryXAxis: CategoryAxis(
-                            labelRotation: 45,
-                            labelAlignment: LabelAlignment.end,
-                            majorTickLines: const MajorTickLines(width: 0),
-                            majorGridLines: const MajorGridLines(width: 0),
-                            labelStyle: const TextStyle(fontSize: 12),
-                            associatedAxisName: "Blocco",
-                            axisLabelFormatter: (axisLabelRenderArgs) =>
-                                ChartAxisLabel(
-                                    "${axisLabelRenderArgs.axis.associatedAxisName} ${axisLabelRenderArgs.text}",
-                                    const TextStyle()),
-                          ),
-                          tooltipBehavior: TooltipBehavior(
-                              enable: true,
-                              format: 'Blocco point.x : point.y ',
-                              header: "Resultati"),
-                          backgroundColor: Colors.white30,
-                          series: <CartesianSeries>[
-                            // LineSeries<ChartData, int>(
-                            //   dataLabelSettings: const DataLabelSettings(
-                            //     isVisible: true,
-                            //   ),
-                            //   color: Colors.blue,
-                            //   markerSettings: const MarkerSettings(
-                            //     isVisible: true,
-                            //   ),
-                            //   initialSelectedDataIndexes: [2],
-                            //   dataSource: sortedBlockAverageWithID!.map((e) {
-                            //     return (ChartData(
-                            //         e.keys.first, e.values.first));
-                            //   }).toList(),
-                            //   xValueMapper: (ChartData data, _) => data.x,
-                            //   yValueMapper: (ChartData data, _) => data.y,
-                            // ),
-                            LineSeries<ChartData, int>(
-                                color: Colors.red,
-                                enableTooltip: false,
-                                dataLabelSettings: const DataLabelSettings(
-                                    isVisible: true,
-                                    textStyle: TextStyle(color: Colors.red)),
-                                markerSettings: const MarkerSettings(
-                                  isVisible: true,
-                                ),
-                                dataSource: [
-                                  ChartData(
-                                      int.parse(sortedUniqueBlockIds.first),
-                                      double.parse(allBlockAverageUpdated
-                                          .toStringAsFixed(2))),
-                                  ChartData(
-                                      int.parse(sortedUniqueBlockIds.last),
-                                      double.parse(allBlockAverageUpdated
-                                          .toStringAsFixed(2)))
-                                ],
-                                xValueMapper: (ChartData data, _) => data.x,
-                                yValueMapper: (ChartData data, _) => data.y)
-                          ]),
-                    ),
-                    // Container(
-                    //     width: double.infinity,
-                    //   padding: EdgeInsets.symmetric(vertical: 5),
-                    //   margin: EdgeInsets.symmetric(horizontal: 20),
-                    //     decoration: BoxDecoration(
-                    //       color: Colors.blue,
-                    //       borderRadius: BorderRadius.circular(5)
-                    //     ),
-                    //     child: Center(
-                    //         child: Text(
-                    //       "Media Globale iniziale: $allBlockAverage",
-                    //       style: const TextStyle(
-                    //         color: Colors.white,
-                    //         fontSize: 22,
-                    //       ),
-                    //     ))),
-                    // blockAverages.length == sortedUniqueBlockIds.length
-                    //     ? Container(
-                    //         padding: const EdgeInsets.only(
-                    //             right: 10, left: 20, bottom: 10),
-                    //         color: Colors.white30,
-                    //         child: SizedBox(
-                    //           width: double.infinity,
-                    //           height: MediaQuery.of(context).size.width * 0.5,
-                    //           child: DChartLineN(
-                    //             animationDuration: const Duration(seconds: 1),
-                    //             animate: true,
-                    //             allowSliding: true,
-                    //             configRenderLine: ConfigRenderLine(
-                    //                 includePoints: true, includeArea: true),
-                    //             groupList: [
-                    //               NumericGroup(
-                    //                 id: '1',
-                    //                 color: Colors.blue,
-                    //                 data: blockAverages.map((e) {
-                    //                   return NumericData(
-                    //                       domain: int.parse(
-                    //                           sortedUniqueBlockIds.elementAt(
-                    //                               blockAverages.indexOf(e))),
-                    //                       measure: e,
-                    //                       color: Colors.red);
-                    //                 }).toList(),
-                    //               ),
-                    //               NumericGroup(
-                    //                 id: '2',
-                    //                 color: Colors.red,
-                    //                 chartType: ChartType.line,
-                    //                 data: sortedUniqueBlockIds.map((e) {
-                    //                   return NumericData(
-                    //                       domain: double.parse(e),
-                    //                       measure: allBlockAverage,
-                    //                       color: Colors.red);
-                    //                 }).toList(),
-                    //               ),
-                    //             ],
-                    //           ),
-                    //         ),
-                    //       )
-                    //     : const Text("Something went wrong!"),
-                    if (columnDataFreeText.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            right: 10, left: 10, bottom: 20, top: 20),
-                        child: TableWidget(
-                            headerText: const ["Domanda", "Resultati"],
-                            columnData: columnDataFreeText),
-                      ),
-                    const SizedBox(
-                      height: 20,
-                    ),
-                    if (!Configs.hideCorrectionsMessages)
-                    ...allCorrectionsToShowInFinalReport.map((correction) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 5, horizontal: 10),
-                        child: Container(
-                          decoration: BoxDecoration(
-                              border: Border.all(color: AppColor.buttonColor),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: ListTile(
-                            tileColor: Colors.white30,
-                            title: Text(
-                              correction['correctionName'],
-                              style: const TextStyle(
-                                  color: AppColor.buttonColor,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              correction['message'],
-                            ),
-                            //trailing: Text(correction["valueToAdd"],style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold,color: Colors.red),),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                            xValueMapper: (ChartData data, _) => data.x,
+                            yValueMapper: (ChartData data, _) => data.y)
+                      ]),
+                ),
 
-                    /*
-                    if (!Configs.hideCorrectionsMessages && matchedNotLastCorrections.isNotEmpty)
-                      ...matchedNotLastCorrections.map((correction) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 5, horizontal: 10),
-                          child: Container(
-                            decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: ListTile(
-                              //tileColor: Colors.grey.shade800,
-                              title: Text(
-                                correction['correctionName'],
-                                style: const TextStyle(
-                                    //color: Colors.grey.shade700,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text(
-                                correction['message'],
-                              ),
-                              //trailing: Text(correction["valueToAdd"],style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold,color: Colors.red),),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    */
-                    if (!Configs.hideGlobalAvgLabel)
-                    Container(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 5,
+              // --- 3. TABELLA TESTO LIBERO ---
+              if (columnDataFreeText.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(
+                      right: 10, left: 10, bottom: 20, top: 20),
+                  child: TableWidget(
+                      headerText: const ["Domanda", "Risultati"],
+                      columnData: columnDataFreeText),
+                ),
+
+              const SizedBox(height: 20),
+
+              // --- 4. MESSAGGI CORREZIONI ---
+              if (!Configs.hideCorrectionsMessages)
+                ...allCorrectionsToShowInFinalReport.map((correction) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 5, horizontal: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                          border: Border.all(color: AppColor.buttonColor),
+                          borderRadius: BorderRadius.circular(10)),
+                      child: ListTile(
+                        tileColor: Colors.white30,
+                        title: Text(
+                          correction['correctionName'],
+                          style: const TextStyle(
+                              color: AppColor.buttonColor,
+                              fontWeight: FontWeight.bold),
                         ),
-                        margin:
-                            EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(5)),
-                        child: Center(
-                            child: Text(
+                        subtitle: Text(
+                          correction['message'],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+
+              // --- 5. ETICHETTA MEDIA GLOBALE ---
+              if (!Configs.hideGlobalAvgLabel)
+                Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 5,
+                    ),
+                    margin:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(5)),
+                    child: Center(
+                        child: Text(
                           "Media Globale ${allBlockAverageUpdated.toStringAsFixed(2)}",
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22,
                           ),
                         ))),
-                    const SizedBox(
-                      height: 20,
-                    ),
-                    if(!Configs.hideThankYouSection)
-                    Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.green,
-                                boxShadow: [
-                                  // Outer glow verde brillante
-                                  BoxShadow(
-                                    color: Colors.greenAccent.withOpacity(0.5),
-                                    blurRadius: 60,  // più sfocato
-                                    spreadRadius: 20,  // più largo
-                                  ),
-                                  // Glow interno secondario per profondità
-                                  BoxShadow(
-                                    color: Colors.green.withOpacity(0.3),
-                                    blurRadius: 30,
-                                    spreadRadius: 10,
-                                  ),
-                                  // Leggera ombra per effetto 3D
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    offset: Offset(5, 5),
-                                    blurRadius: 12,
-                                    spreadRadius: 1,
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.all(12), // spazio intorno all’icona
-                              child: const Icon(
-                                Icons.check,
-                                size: 90,
-                                color: Colors.white,
-                              ),
+
+              const SizedBox(height: 20),
+
+              // --- 6. SEZIONE THANK YOU ---
+              if (!Configs.hideThankYouSection)
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.green,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.greenAccent.withOpacity(0.5),
+                              blurRadius: 60,
+                              spreadRadius: 20,
                             ),
-                            const SizedBox(height: 70),
-
-                            // "Transfer Successful!" Text
-
-                            // "Grazie per la tua partecipazione!" Text
-                            Text(
-                              "Grazie per la tua partecipazione!",
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.black,
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-
-                            // "Il sondaggio è stato compilato correttamente..." Text
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              child: Text(
-                                "Il sondaggio è stato compilato correttamente. I risultati verranno analizzati dall’amministratore.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 50),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(horizontal: 100, vertical: 10),
-                                backgroundColor: AppColor.buttonColor,
-                                foregroundColor: Colors.white,
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              onPressed: () {
-                                SystemNavigator.pop(); // ⬅️ chiude l'app
-                              },
-                              child: Text("Chiudi"),
-                            )
                           ],
                         ),
+                        padding: const EdgeInsets.all(12),
+                        child: const Icon(
+                          Icons.check,
+                          size: 90,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 70),
+                      const Text(
+                        "Grazie per la tua partecipazione!",
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          "Il sondaggio è stato compilato correttamente. I risultati verranno analizzati dall’amministratore.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 50),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 10),
+                          backgroundColor: AppColor.buttonColor,
+                          foregroundColor: Colors.white,
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        onPressed: () {
+                          SystemNavigator.pop(); // Chiude l'app
+                        },
+                        child: const Text("Chiudi"),
                       )
-                  ],
+                    ],
+                  ),
                 ),
-              )
+              const SizedBox(height: 50),
+            ],
+          ),
+        )
             : Center(
-                child: LoadingAnimationWidget.inkDrop(
-                    color: AppColor.buttonColor, size: 50)),
-
+            child: LoadingAnimationWidget.inkDrop(
+                color: AppColor.buttonColor, size: 50)),
       ),
     );
   }
@@ -942,4 +478,3 @@ class ChartData {
   final int x;
   final double y;
 }
-

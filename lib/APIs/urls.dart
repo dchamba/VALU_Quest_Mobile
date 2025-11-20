@@ -8,6 +8,7 @@ class URLs {
   static String getCorrectionsFilteredByPriorityList = "get-correctionsFilteredByPriorityList.php";
   static String getConfigURL = "get-config.php";
   static String storeQuestionsURL = "store-questionnaire.php";
+  static String processQuestionnaireURL = "process-questionnaire.php";
 
   static String surveyDatabaseConnection = "valu";
 
@@ -20,5 +21,6 @@ class URLs {
     getCorrectionsFilteredByPriorityList = "get-correctionsFilteredByPriorityList.php?connessioneDB=$surveyDatabaseConnection";
     storeQuestionsURL = "store-questionnaire.php?connessioneDB=$surveyDatabaseConnection";
     getConfigURL = "get-config.php?connessioneDB=$surveyDatabaseConnection";
+    processQuestionnaireURL = "process-questionnaire.php?connessioneDB=$surveyDatabaseConnection";
   }
 }
