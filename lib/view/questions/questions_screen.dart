@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:valu_quest/APIs/urls.dart';
 import 'package:valu_quest/Utils/app_colors.dart';
+import 'package:valu_quest/Utils/file_log_utils.dart';
 import 'package:valu_quest/Utils/log_utils.dart';
 import 'package:http/http.dart' as http;
 import 'package:valu_quest/models/question_model.dart';
@@ -105,8 +106,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     setLoading(false);
   }
 
-  Future<void> loadChildQuestions(
-      String questionID, String questionTreeID, String optionId) async {
+  Future<void> loadChildQuestions(String questionID, String questionTreeID, String optionId) async {
+    FileLogUtils.log('CHILD_START', 'qId=$questionID tree=$questionTreeID opt=$optionId');
     setLoading(true);
     try {
       final response = await http.post(
@@ -117,6 +118,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
             "optionId": optionId
           }));
       if (response.statusCode == 200) {
+        FileLogUtils.log('CHILD_HTTP', 'status=${response.statusCode} bodyLen=${response.body.length}');
+
         LogUtils.log("API : ${URLs.baseURL}${URLs.getChildQuestionsURL}",
             jsonDecode(response.body)['data']);
 
@@ -126,6 +129,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
           data.map((question) {
             childQuestion.add(QuestionsModel.fromJson(question));
           }).toList();
+          FileLogUtils.log('CHILD_SUCCESS', 'count=${childQuestion.length} surveyMode=$surveyMode');
+
+          final t0 = DateTime.now();
+
           if (kDebugMode) {
             print("surveyMode = $surveyMode");
             print(
@@ -157,6 +164,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
               }
             }
           }
+          final ms = DateTime.now().difference(t0).inMilliseconds;
+          FileLogUtils.log('CHILD_INSERT_DONE', 'ms=$ms questionsLen=${questions.length}');
         }
       } else {
         setLoading(false);
@@ -166,10 +175,16 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       setLoading(false);
       LogUtils.log("loadChildQuestions()", e);
     }
+    finally {
+      setLoading(false);
+    }
+
     setLoading(false);
   }
 
   Future<void> goNext(String optionId) async {
+    FileLogUtils.log('GONEXT_START', 'idx=$currentQuestionIndex optionId=$optionId');
+
     String currentQuestionId = (questions[currentQuestionIndex].questionId ?? "").toString();
     String questionTreeId = (questions[currentQuestionIndex].questionTreeId ?? "").toString();
 
@@ -184,7 +199,9 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
     }
 
     if (currentQuestionId.isNotEmpty && questionTreeId.isNotEmpty && questionTreeId != "0") {
+      FileLogUtils.log('GONEXT_BEFORE_CHILD', 'qId=$currentQuestionId tree=$questionTreeId optionId=$optionId');
       await loadChildQuestions(currentQuestionId, questionTreeId, optionId);
+      FileLogUtils.log('GONEXT_AFTER_CHILD', 'questionsLen=${questions.length} treeQuestionsLen=${treeQuestions.length} seqChange=$isSequenceChange');
     }
     isTrue = (questions[currentQuestionIndex].isFixed == "null" || questions[currentQuestionIndex].isFixed == null ) &&
         questions[currentQuestionIndex].isBMI == "0";
@@ -201,6 +218,8 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
       setState(() {
         currentQuestionIndex++;
       });
+      FileLogUtils.log('GONEXT_INDEX_INC', 'newIdx=$currentQuestionIndex / len=${questions.length}');
+
       // MODIFICA: Calcola il suggerimento per la nuova domanda
       if (_isSuggestionMode) {
         _calculateSuggestion();
@@ -355,6 +374,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
                           "questionTreeId": questions[currentQuestionIndex].questionTreeId,
                         };
                         selectedAnswers[nQid] = questionMap;
+                        FileLogUtils.log(
+                          'ANSWER_SELECTED',
+                          'idx=$currentQuestionIndex qId=${questions[currentQuestionIndex].questionId} tree=${questions[currentQuestionIndex].questionTreeId} optId=${option.optionId} optVal=${option.optionValue}',
+                        );
                       });
                     },
                     child: Container(
@@ -440,6 +463,10 @@ class _QuestionsScreenState extends State<QuestionsScreen> {
                               .toString()
                               .isNotEmpty) {
                         isSelected = false;
+                        FileLogUtils.log(
+                          'BTN_NEXT',
+                          'idx=$currentQuestionIndex qId=$qId tree=$questionTreeId optId=${selectedAnswers[nQid]["optionId"]} optVal=${selectedAnswers[nQid]["option_value"]}',
+                        );
                         goNext((selectedAnswers[nQid]["optionId"] ?? "").toString());
                       } else {
                         setState(() {
